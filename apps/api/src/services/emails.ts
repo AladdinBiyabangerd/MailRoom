@@ -50,6 +50,8 @@ export interface SendPayload {
   senderIdentityId?: number;
   includeUnsubscribe?: boolean;
   resendOfEmailId?: number;
+  fromOverride?: { email: string; displayName?: string | null };
+  recipientNames?: Record<string, string | null>;
   attachments?: { fileName: string; contentType: string; contentBase64: string }[];
 }
 
@@ -97,17 +99,26 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
     throw bad(Codes.SENT_EMAIL, Msg.EMAIL_ATTACHMENT_LIMIT, config.limits.maxAttachments);
   }
 
-  if (request.campaignId) {
-    const campaign = await prisma.emailCampaign.findUnique({ where: { id: request.campaignId } });
-    if (!campaign) throw notFound(Codes.EMAIL_CAMPAIGN, Msg.NOT_FOUND, Msg.ENTITY_EMAIL_CAMPAIGN);
+  let campaignId = request.campaignId ?? undefined;
+  if (campaignId) {
+    const campaign = await prisma.emailCampaign.findUnique({ where: { id: campaignId } });
+    if (!campaign) {
+      if (request.resendOfEmailId) {
+        campaignId = undefined;
+      } else {
+        throw notFound(Codes.EMAIL_CAMPAIGN, Msg.NOT_FOUND, Msg.ENTITY_EMAIL_CAMPAIGN);
+      }
+    }
   }
 
   const scheduledAt = request.scheduledAt ? new Date(request.scheduledAt) : null;
   const isScheduled = Boolean(scheduledAt && scheduledAt > now);
   if (scheduledAt && !isScheduled) throw bad(Codes.SENT_EMAIL, Msg.EMAIL_SCHEDULE_IN_PAST);
 
-  const includeUnsubscribe = request.includeUnsubscribe === true || (request.includeUnsubscribe == null && request.campaignId != null);
-  const from = await resolveFromAddress(request.senderIdentityId ?? null);
+  const includeUnsubscribe =
+    request.includeUnsubscribe === true || (request.includeUnsubscribe == null && campaignId != null);
+  const from =
+    request.fromOverride ?? (await resolveFromAddress(request.senderIdentityId ?? null));
 
   const attachments = (request.attachments ?? []).map((a) => {
     const content = decodeAttachment(a.contentBase64);
@@ -130,13 +141,14 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
       sentAt: isScheduled ? scheduledAt! : now,
       scheduledAt: isScheduled ? scheduledAt : null,
       status: isScheduled ? "SCHEDULED" : "QUEUED",
-      campaignId: request.campaignId ?? null,
+      campaignId: campaignId ?? null,
       resendOfEmailId: request.resendOfEmailId ?? null,
       includeUnsubscribe,
       recipients: {
         create: [
           ...to.map((e) => ({
             email: e,
+            name: request.recipientNames?.[e] ?? null,
             recipientType: "TO",
             status: "QUEUED",
             openTrackingToken: randomUUID(),
@@ -144,6 +156,7 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
           })),
           ...cc.map((e) => ({
             email: e,
+            name: request.recipientNames?.[e] ?? null,
             recipientType: "CC",
             status: "QUEUED",
             openTrackingToken: randomUUID(),
@@ -151,6 +164,7 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
           })),
           ...bcc.map((e) => ({
             email: e,
+            name: request.recipientNames?.[e] ?? null,
             recipientType: "BCC",
             status: "QUEUED",
             openTrackingToken: randomUUID(),
@@ -169,7 +183,9 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
       void dispatchEmail(email.id);
     });
   }
-  await deleteCurrentDraft(actor.userId);
+  if (!request.resendOfEmailId) {
+    await deleteCurrentDraft(actor.userId);
+  }
 
   return {
     id: String(email.id),
@@ -387,6 +403,19 @@ export async function resendEmail(id: number, actor: AuthUser, modeRaw?: string)
   const cc = source.filter((r) => r.recipientType === "CC").map((r) => r.email);
   const bcc = source.filter((r) => r.recipientType === "BCC").map((r) => r.email);
   if (!to.length) throw bad(Codes.SENT_EMAIL, Msg.EMAIL_RESEND_NO_RECIPIENTS);
+
+  let senderIdentityId = original.senderIdentityId ?? undefined;
+  if (senderIdentityId) {
+    const identity = await prisma.emailSenderIdentity.findFirst({
+      where: { id: senderIdentityId, active: true },
+    });
+    if (!identity) senderIdentityId = undefined;
+  }
+
+  const recipientNames = Object.fromEntries(
+    original.recipients.map((r) => [normalizeEmail(r.email), r.name]),
+  );
+
   return sendAdminEmail(actor, {
     to,
     cc: cc.length ? cc : undefined,
@@ -396,7 +425,11 @@ export async function resendEmail(id: number, actor: AuthUser, modeRaw?: string)
     campaignId: original.campaignId ?? undefined,
     resendOfEmailId: original.id,
     includeUnsubscribe: original.includeUnsubscribe,
-    senderIdentityId: original.senderIdentityId ?? undefined,
+    senderIdentityId,
+    fromOverride: original.fromEmail
+      ? { email: original.fromEmail, displayName: original.fromName }
+      : undefined,
+    recipientNames,
     attachments: original.attachments.map((a) => ({
       fileName: a.fileName,
       contentType: a.contentType,

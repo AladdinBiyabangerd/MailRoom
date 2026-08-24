@@ -48,8 +48,10 @@ import {
 } from "lucide-react";
 import { FontSize } from "@/lib/tiptap-font-size";
 import { altFromFileName, EDITOR_IMAGE_ACCEPT, fileToEditorImageSrc } from "@/lib/editor-image";
-import { isFullHtmlDocument, looksLikeHtmlSource } from "@/lib/html-source";
+import { asFullHtmlDocument, isFullHtmlDocument, looksLikeHtmlSource, shouldUseDocumentEditor } from "@/lib/html-source";
 import { toast } from "sonner";
+import { FullHtmlCanvas } from "@/components/email/FullHtmlCanvas";
+import { EmailPreviewFrame } from "@/components/email/EmailPreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -548,26 +550,32 @@ export interface RichTextEditorProps {
   onChange: (html: string) => void;
   placeholder?: string;
   minHeight?: number;
+  /** Always use Preview / Edit / HTML — templates must keep image drag after save. */
+  layout?: "auto" | "document";
 }
 
-type EditorMode = "visual" | "html";
+type EditorMode = "visual" | "html" | "preview";
 
 export function RichTextEditor({
   value,
   onChange,
   placeholder,
   minHeight = 420,
+  layout = "auto",
 }: RichTextEditorProps) {
   const { t } = useTranslation();
   const editorRef = useRef<Editor | null>(null);
-  const [mode, setMode] = useState<EditorMode>(() => (isFullHtmlDocument(value) ? "html" : "visual"));
+  const [mode, setMode] = useState<EditorMode>("visual");
+  const useDocumentEditor = layout === "document" || shouldUseDocumentEditor(value);
+  const documentEditorRef = useRef(useDocumentEditor);
+  documentEditorRef.current = useDocumentEditor;
 
   const applyHtmlSource = useCallback(
     (html: string) => {
       const source = html.trim();
-      if (isFullHtmlDocument(source)) {
-        onChange(source);
-        setMode("html");
+      if (layout === "document" || isFullHtmlDocument(source) || shouldUseDocumentEditor(source)) {
+        onChange(asFullHtmlDocument(source));
+        setMode("visual");
         return;
       }
       const current = editorRef.current;
@@ -577,7 +585,7 @@ export function RichTextEditor({
       }
       onChange(source);
     },
-    [onChange],
+    [layout, onChange],
   );
 
   const editor = useEditor({
@@ -604,9 +612,9 @@ export function RichTextEditor({
         placeholder: placeholder ?? t("emails.editor.placeholder"),
       }),
     ],
-    content: isFullHtmlDocument(value) ? "" : value,
+    content: useDocumentEditor ? "" : value,
     onUpdate: ({ editor: ed }) => {
-      if (isFullHtmlDocument(value)) {
+      if (documentEditorRef.current) {
         return;
       }
       onChange(ed.getHTML());
@@ -650,7 +658,7 @@ export function RichTextEditor({
   }, [editor]);
 
   useEffect(() => {
-    if (!editor || mode !== "visual" || isFullHtmlDocument(value)) {
+    if (!editor || mode !== "visual" || documentEditorRef.current) {
       return;
     }
     const current = editor.getHTML();
@@ -659,19 +667,9 @@ export function RichTextEditor({
     }
   }, [editor, mode, value]);
 
-  useEffect(() => {
-    if (isFullHtmlDocument(value)) {
-      setMode("html");
-    }
-  }, [value]);
-
   const switchMode = (next: EditorMode) => {
     if (next === mode) return;
-    if (next === "visual" && isFullHtmlDocument(value)) {
-      toast.message(t("emails.editor.htmlKeepSource"));
-      return;
-    }
-    if (next === "visual" && editor) {
+    if (next === "visual" && !documentEditorRef.current && editor) {
       editor.commands.setContent(value || "", { emitUpdate: false });
     }
     setMode(next);
@@ -679,16 +677,28 @@ export function RichTextEditor({
 
   if (!editor) return null;
 
+  const canvasHtml = asFullHtmlDocument(value);
+
   return (
     <div className="overflow-hidden rounded-md border bg-background">
       <div className="flex items-center justify-end gap-1 border-b bg-muted/30 px-1.5 py-1">
+        {useDocumentEditor && (
+          <Button
+            type="button"
+            size="sm"
+            variant={mode === "preview" ? "secondary" : "ghost"}
+            onClick={() => switchMode("preview")}
+          >
+            {t("emails.editor.modePreview")}
+          </Button>
+        )}
         <Button
           type="button"
           size="sm"
           variant={mode === "visual" ? "secondary" : "ghost"}
           onClick={() => switchMode("visual")}
         >
-          {t("emails.editor.modeVisual")}
+          {useDocumentEditor ? t("emails.editor.modeEdit") : t("emails.editor.modeVisual")}
         </Button>
         <Button
           type="button"
@@ -699,7 +709,17 @@ export function RichTextEditor({
           {t("emails.editor.modeHtml")}
         </Button>
       </div>
-      {mode === "visual" ? (
+      {useDocumentEditor && mode === "preview" ? (
+        <div className="p-2">
+          <EmailPreviewFrame
+            html={canvasHtml}
+            emptyLabel={t("emails.emptyBody")}
+            heightClassName="min-h-[420px] h-[min(70vh,640px)]"
+          />
+        </div>
+      ) : useDocumentEditor && mode === "visual" ? (
+        <FullHtmlCanvas html={canvasHtml} onChange={onChange} minHeight={minHeight} />
+      ) : mode === "visual" ? (
         <>
           <EditorToolbar editor={editor} />
           <EditorContent editor={editor} />
@@ -714,7 +734,9 @@ export function RichTextEditor({
             style={{ minHeight }}
             spellCheck={false}
           />
-          <p className="px-1 text-xs text-muted-foreground">{t("emails.editor.htmlHint")}</p>
+          <p className="px-1 text-xs text-muted-foreground">
+            {useDocumentEditor ? t("emails.editor.documentHtmlHint") : t("emails.editor.htmlHint")}
+          </p>
         </div>
       )}
     </div>

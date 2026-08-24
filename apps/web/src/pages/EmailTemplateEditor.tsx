@@ -21,6 +21,7 @@ import {
   updateEmailTemplateRequest,
   type UpsertEmailTemplatePayload,
 } from "@/api/email-templates";
+import { asFullHtmlDocument, htmlHasVisibleContent } from "@/lib/html-source";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { queryKeys } from "@/lib/query-keys";
 import { usePermission } from "@/hooks/use-permission";
@@ -83,7 +84,9 @@ export default function EmailTemplateEditor() {
       name: draft.name.trim(),
       description: draft.description?.trim() || undefined,
       subject: draft.subject?.trim() || undefined,
-      htmlBody: draft.htmlBody?.trim() || undefined,
+      htmlBody: htmlHasVisibleContent(draft.htmlBody ?? "")
+        ? asFullHtmlDocument(draft.htmlBody ?? "")
+        : undefined,
     };
 
     setSaving(true);
@@ -204,6 +207,7 @@ export default function EmailTemplateEditor() {
               onChange={(html) => setDraft({ ...draft, htmlBody: html })}
               placeholder={t("emailTemplates.bodyPlaceholder")}
               minHeight={560}
+              layout="document"
             />
           </CardContent>
         </Card>

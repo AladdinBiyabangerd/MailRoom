@@ -19,7 +19,14 @@ function isCompleteSmtp(host?: string | null, username?: string | null, password
   return Boolean(host?.trim() && username?.trim() && password);
 }
 
+let smtpSettingsOverride: SmtpSettings | null | undefined;
+
+export function setSmtpSettingsForTests(settings: SmtpSettings | null | undefined) {
+  smtpSettingsOverride = settings;
+}
+
 export async function loadSmtpSettings(): Promise<SmtpSettings | null> {
+  if (smtpSettingsOverride !== undefined) return smtpSettingsOverride;
   const dbConfig = await prisma.adminMailConfig.findFirst({ orderBy: { id: "asc" } });
   if (dbConfig && isCompleteSmtp(dbConfig.host, dbConfig.username, dbConfig.password)) {
     return {
@@ -40,13 +47,28 @@ export async function loadSmtpSettings(): Promise<SmtpSettings | null> {
   return null;
 }
 
-export function createTransport(settings: SmtpSettings) {
-  return nodemailer.createTransport({
+export type MailTransport = {
+  sendMail: (mail: Record<string, unknown>) => Promise<unknown>;
+};
+
+type TransportFactory = (settings: SmtpSettings) => MailTransport;
+
+const defaultTransportFactory: TransportFactory = (settings) =>
+  nodemailer.createTransport({
     host: settings.host,
     port: settings.port,
     secure: settings.port === 465,
     auth: { user: settings.username, pass: settings.password },
   });
+
+let transportFactory: TransportFactory = defaultTransportFactory;
+
+export function setTransportFactoryForTests(factory: TransportFactory | null) {
+  transportFactory = factory ?? defaultTransportFactory;
+}
+
+export function createTransport(settings: SmtpSettings) {
+  return transportFactory(settings) as ReturnType<typeof nodemailer.createTransport>;
 }
 
 export async function sendHtmlEmail(options: {
