@@ -43,15 +43,15 @@ const demoTemplates: EmailTemplate[] = [
     id: 1,
     name: "Product demo invitation",
     description: "Standard outreach for hotel demos",
-    subject: "StayBoard PMS — Demo invitation",
+    subject: "MailRoom — Demo invitation",
     htmlBody:
-      "<p>Hello,</p><p>We would like to invite you to try <strong>StayBoard PMS</strong>.</p>",
+      "<p>Hello,</p><p>We would like to invite you to try <strong>MailRoom</strong>.</p>",
   },
   {
     id: 2,
     name: "Trial follow-up",
     description: "Check-in with hotels on trial",
-    subject: "How is your StayBoard trial going?",
+    subject: "How is your MailRoom trial going?",
     htmlBody: "<p>Hi,</p><p>We hope your trial is going well. Let us know if you need help.</p>",
   },
 ];

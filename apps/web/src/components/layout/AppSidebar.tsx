@@ -80,7 +80,7 @@ export function AppSidebar({
         <div className="border-t border-sidebar-border/60 p-4">
           <div className="rounded-lg bg-sidebar-accent/50 px-3 py-2.5">
             <p className="text-xs font-medium text-sidebar-foreground/90">
-              Email Delivery
+              {t("app.name")}
             </p>
             <p className="mt-0.5 text-[11px] text-sidebar-foreground/55">
               v0.1.0 · {t("status.operational")}

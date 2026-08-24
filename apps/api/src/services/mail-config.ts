@@ -63,8 +63,8 @@ export async function sendTestEmail(email: string) {
       settings,
       from: fallbackFrom(settings),
       to: [email.trim()],
-      subject: "Mailroom — SMTP test email",
-      html: "<p>Hello,</p><p>This is a test email from <strong>Mailroom</strong>.</p><p>The SMTP configuration is working correctly.</p>",
+      subject: "MailRoom — SMTP test email",
+      html: "<p>Hello,</p><p>This is a test email from <strong>MailRoom</strong>.</p><p>The SMTP configuration is working correctly.</p>",
     });
   } catch {
     throw bad(Codes.MAIL_CONFIG, Msg.MAIL_CONFIG_TEST_FAILED);

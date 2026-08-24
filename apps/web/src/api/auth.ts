@@ -69,7 +69,7 @@ export type LoginResult =
   | { type: "REQUIRES_ACTIVATION"; email: string };
 
 export const DEMO_CREDENTIALS = {
-  email: "admin@stayboard.az",
+  email: "admin@mailroom.local",
   password: "Admin123",
 };
 

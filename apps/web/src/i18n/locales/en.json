@@ -1,8 +1,8 @@
 {
   "app": {
-    "name": "StayBoard Admin",
-    "shortName": "Admin",
-    "tagline": "PMS & RMS platform administration"
+    "name": "MailRoom",
+    "shortName": "MailRoom",
+    "tagline": "Email workspace"
   },
   "common": {
     "search": "Search",
@@ -82,9 +82,9 @@
   },
   "auth": {
     "title": "Welcome back",
-    "subtitle": "Sign in to the StayBoard administration console",
+    "subtitle": "Sign in to MailRoom",
     "email": "Email",
-    "emailPlaceholder": "admin@stayboard.az",
+    "emailPlaceholder": "admin@mailroom.local",
     "password": "Password",
     "passwordPlaceholder": "Enter your password",
     "rememberMe": "Remember me",

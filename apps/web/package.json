@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Mailroom — email operations console.",
+  "description": "MailRoom — email workspace.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

@@ -1,8 +1,8 @@
 {
   "app": {
-    "name": "StayBoard Admin",
-    "shortName": "Admin",
-    "tagline": "PMS და RMS პლატფორმის ადმინისტრირება"
+    "name": "MailRoom",
+    "shortName": "MailRoom",
+    "tagline": "ელფოსტის სამუშაო სივრცე"
   },
   "common": {
     "search": "ძებნა",
@@ -81,9 +81,9 @@
   },
   "auth": {
     "title": "კეთილი იყოს დაბრუნება",
-    "subtitle": "შედით StayBoard-ის ადმინისტრირების კონსოლში",
+    "subtitle": "შედით MailRoom-ში",
     "email": "ელფოსტა",
-    "emailPlaceholder": "admin@stayboard.az",
+    "emailPlaceholder": "admin@mailroom.local",
     "password": "პაროლი",
     "passwordPlaceholder": "შეიყვანეთ პაროლი",
     "rememberMe": "დამიმახსოვრე",

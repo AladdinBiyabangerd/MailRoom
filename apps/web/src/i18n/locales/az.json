@@ -1,8 +1,8 @@
 {
   "app": {
-    "name": "StayBoard Admin",
-    "shortName": "Admin",
-    "tagline": "PMS və RMS platforma idarəetməsi"
+    "name": "MailRoom",
+    "shortName": "MailRoom",
+    "tagline": "E-poçt iş sahəsi"
   },
   "common": {
     "search": "Axtarış",
@@ -82,9 +82,9 @@
   },
   "auth": {
     "title": "Xoş gəlmisiniz",
-    "subtitle": "StayBoard idarəetmə konsoluna daxil olun",
+    "subtitle": "MailRoom-a daxil olun",
     "email": "E-poçt",
-    "emailPlaceholder": "admin@stayboard.az",
+    "emailPlaceholder": "admin@mailroom.local",
     "password": "Şifrə",
     "passwordPlaceholder": "Şifrənizi daxil edin",
     "rememberMe": "Məni xatırla",

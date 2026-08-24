@@ -1,6 +1,6 @@
-# Mailroom
+# MailRoom
 
-Mailroom is a small email workspace. You use it to write messages, send them to one person or to a whole list, reuse the same letter later, and see whether people received and opened it.
+MailRoom is a small email workspace. You use it to write messages, send them to one person or to a whole list, reuse the same letter later, and see whether people received and opened it.
 
 It is meant for teams who send the same kinds of emails often — invitations, updates, newsletters — and want that work in one place instead of mixing it with a personal inbox.
 

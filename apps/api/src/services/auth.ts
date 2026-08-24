@@ -91,14 +91,14 @@ export async function sendOtp(email: string, recipientName: string, purpose: str
   }
 
   const settings = await loadSmtpSettings();
-  const text = `Your Mailroom verification code is ${code}. It expires in 5 minutes.`;
+  const text = `Your MailRoom verification code is ${code}. It expires in 5 minutes.`;
   if (settings) {
     try {
       await sendHtmlEmail({
         settings,
         from: fallbackFrom(settings),
         to: [normalized],
-        subject: purpose === "PASSWORD_RESET" ? "Mailroom password reset" : "Mailroom verification code",
+        subject: purpose === "PASSWORD_RESET" ? "MailRoom password reset" : "MailRoom verification code",
         html: `<p>Hello ${recipientName},</p><p>${text}</p>`,
       });
     } catch (err) {

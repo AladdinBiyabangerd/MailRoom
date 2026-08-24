@@ -53,9 +53,9 @@ const demoCampaigns: EmailCampaign[] = [
     id: 1,
     name: "Hotel Outreach — Baku",
     description: "Potential hotel partners in Baku region",
-    defaultSubject: "StayBoard PMS — Demo invitation",
+    defaultSubject: "MailRoom — Demo invitation",
     defaultHtmlBody:
-      "<p>Hello,</p><p>We would like to invite you to try <strong>StayBoard PMS</strong>.</p>",
+      "<p>Hello,</p><p>We would like to invite you to try <strong>MailRoom</strong>.</p>",
     templateId: 1,
     contactCount: 3,
     contacts: [
@@ -68,7 +68,7 @@ const demoCampaigns: EmailCampaign[] = [
     id: 2,
     name: "Trial follow-up",
     description: "Hotels currently on trial",
-    defaultSubject: "How is your StayBoard trial going?",
+    defaultSubject: "How is your MailRoom trial going?",
     contactCount: 2,
     contacts: [
       { id: 4, email: "manager@sheki.az", name: "Sheki Silk Inn" },

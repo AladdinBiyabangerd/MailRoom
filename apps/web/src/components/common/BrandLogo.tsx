@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 
 export function BrandMark({ className }: { className?: string }) {
@@ -30,16 +31,18 @@ export function BrandLogo({
   collapsed?: boolean;
   className?: string;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
       <BrandMark />
       {!collapsed && (
         <div className="flex flex-col leading-tight">
           <span className="text-sm font-semibold text-sidebar-foreground">
-            Email Delivery
+            {t("app.name")}
           </span>
-          <span className="text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/55">
-            Admin
+          <span className="text-[11px] font-medium tracking-wide text-sidebar-foreground/55">
+            {t("app.tagline")}
           </span>
         </div>
       )}
