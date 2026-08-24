@@ -1,0 +1,9 @@
+node_modules
+.git
+.env
+dist
+apps/web/dist
+*.md
+.DS_Store
+apps/web/Dockerfile
+apps/web/nginx.conf

@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AdminUser {
+  id            Int       @id @default(autoincrement())
+  email         String    @unique @db.VarChar(160)
+  firstName     String    @map("first_name") @db.VarChar(50)
+  lastName      String    @map("last_name") @db.VarChar(50)
+  password      String    @db.VarChar(255)
+  status        String    @db.VarChar(20)
+  lastActive    DateTime? @map("last_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  userRoles     AdminUserRole[]
+  refreshTokens RefreshToken[]
+  drafts        EmailDraft[]
+
+  @@map("admin_users")
+}
+
+model AdminRole {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(64)
+  description String?  @db.VarChar(255)
+  systemRole  Boolean  @map("system_role")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  permissions AdminRolePermission[]
+  userRoles   AdminUserRole[]
+
+  @@map("admin_roles")
+}
+
+model AdminRolePermission {
+  roleId     Int    @map("role_id")
+  permission String @db.VarChar(64)
+  role       AdminRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permission])
+  @@map("admin_role_permissions")
+}
+
+model AdminUserRole {
+  userId Int @map("user_id")
+  roleId Int @map("role_id")
+  user   AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   AdminRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("admin_user_roles")
+}
+
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  token     String    @unique @db.VarChar(64)
+  userId    Int       @map("user_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  expiresAt DateTime  @map("expires_at")
+  revoked   Boolean   @default(false)
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([revoked, expiresAt])
+  @@map("admin_refresh_tokens")
+}
+
+model OtpCode {
+  id            Int       @id @default(autoincrement())
+  code          Int
+  email         String    @db.VarChar(160)
+  purpose       String    @db.VarChar(30)
+  expirationTime DateTime @map("expiration_time")
+  used          Boolean   @default(false)
+  retryCount    Int       @default(0) @map("retry_count")
+  lastSentTime  DateTime? @map("last_sent_time")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([email, purpose, used])
+  @@map("admin_otp")
+}
+
+model PasswordResetToken {
+  id             Int      @id @default(autoincrement())
+  email          String   @db.VarChar(160)
+  code           String   @db.VarChar(10)
+  expirationTime DateTime @map("expiration_time")
+  verified       Boolean  @default(false)
+
+  @@index([email, code])
+  @@map("admin_password_reset_tokens")
+}
+
+model EmailTemplate {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(160)
+  description String?  @db.VarChar(500)
+  subject     String?  @db.VarChar(200)
+  htmlBody    String?  @map("html_body")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("email_templates")
+}
+
+model EmailAddressBookContact {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique @db.VarChar(160)
+  name      String?  @db.VarChar(120)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("email_address_book_contacts")
+}
+
+model EmailCampaign {
+  id              Int      @id @default(autoincrement())
+  name            String   @db.VarChar(160)
+  description     String?  @db.VarChar(500)
+  defaultSubject  String?  @map("default_subject") @db.VarChar(200)
+  defaultHtmlBody String?  @map("default_html_body")
+  templateId      Int?     @map("template_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  contacts        EmailCampaignContact[]
+
+  @@map("email_campaigns")
+}
+
+model EmailCampaignContact {
+  id         Int           @id @default(autoincrement())
+  campaignId Int           @map("campaign_id")
+  email      String        @db.VarChar(160)
+  name       String?       @db.VarChar(120)
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+  campaign   EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@map("email_campaign_contacts")
+}
+
+model EmailDraft {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @unique @map("user_id")
+  subject    String?  @db.VarChar(200)
+  bodyHtml   String?  @map("body_html")
+  campaignId Int?     @map("campaign_id")
+  showCc     Boolean  @default(false) @map("show_cc")
+  showBcc    Boolean  @default(false) @map("show_bcc")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  user       AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipients EmailDraftRecipient[]
+
+  @@map("email_drafts")
+}
+
+model EmailDraftRecipient {
+  id            Int        @id @default(autoincrement())
+  draftId       Int        @map("draft_id")
+  email         String     @db.VarChar(160)
+  name          String?    @db.VarChar(120)
+  recipientType String     @map("recipient_type") @db.VarChar(10)
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  draft         EmailDraft @relation(fields: [draftId], references: [id], onDelete: Cascade)
+
+  @@map("email_draft_recipients")
+}
+
+model SentEmail {
+  id                 Int      @id @default(autoincrement())
+  subject            String   @db.VarChar(200)
+  bodyHtml           String   @map("body_html")
+  sentByUserId       Int?     @map("sent_by_user_id")
+  sentByEmail        String   @map("sent_by_email") @db.VarChar(160)
+  sentByName         String   @map("sent_by_name") @db.VarChar(120)
+  senderIdentityId   Int?     @map("sender_identity_id")
+  fromEmail          String?  @map("from_email") @db.VarChar(160)
+  fromName           String?  @map("from_name") @db.VarChar(120)
+  sentAt             DateTime @map("sent_at")
+  scheduledAt        DateTime? @map("scheduled_at")
+  status             String   @db.VarChar(20)
+  campaignId         Int?     @map("campaign_id")
+  resendOfEmailId    Int?     @map("resend_of_email_id")
+  includeUnsubscribe Boolean  @default(false) @map("include_unsubscribe")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  recipients         SentEmailRecipient[]
+  attachments        SentEmailAttachment[]
+
+  @@index([status, scheduledAt])
+  @@map("sent_emails")
+}
+
+model SentEmailRecipient {
+  id                 Int       @id @default(autoincrement())
+  sentEmailId        Int       @map("sent_email_id")
+  email              String    @db.VarChar(160)
+  name               String?   @db.VarChar(120)
+  recipientType      String    @map("recipient_type") @db.VarChar(10)
+  status             String    @db.VarChar(20)
+  deliveredAt        DateTime? @map("delivered_at")
+  openedAt           DateTime? @map("opened_at")
+  errorMessage       String?   @map("error_message") @db.VarChar(500)
+  openTrackingToken  String?   @unique @map("open_tracking_token") @db.VarChar(36)
+  unsubscribeToken   String?   @unique @map("unsubscribe_token") @db.VarChar(36)
+  unsubscribedAt     DateTime? @map("unsubscribed_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  sentEmail          SentEmail @relation(fields: [sentEmailId], references: [id], onDelete: Cascade)
+
+  @@map("sent_email_recipients")
+}
+
+model SentEmailAttachment {
+  id          Int      @id @default(autoincrement())
+  sentEmailId Int      @map("sent_email_id")
+  fileName    String   @map("file_name") @db.VarChar(255)
+  contentType String   @map("content_type") @db.VarChar(120)
+  content     Bytes
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  sentEmail   SentEmail @relation(fields: [sentEmailId], references: [id], onDelete: Cascade)
+
+  @@map("sent_email_attachments")
+}
+
+model EmailSuppression {
+  id             Int      @id @default(autoincrement())
+  email          String   @unique @db.VarChar(160)
+  unsubscribedAt DateTime @map("unsubscribed_at")
+  source         String   @db.VarChar(20)
+  campaignId     Int?     @map("campaign_id")
+  sentEmailId    Int?     @map("sent_email_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("email_suppressions")
+}
+
+model EmailSenderIdentity {
+  id            Int      @id @default(autoincrement())
+  email         String   @db.VarChar(160)
+  displayName   String   @map("display_name") @db.VarChar(120)
+  defaultSender Boolean  @default(false) @map("is_default")
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("email_sender_identities")
+}
+
+model AdminMailConfig {
+  id        Int      @id @default(autoincrement())
+  host      String   @db.VarChar(255)
+  port      Int
+  username  String   @db.VarChar(255)
+  password  String   @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("admin_mail_configs")
+}

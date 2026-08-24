@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: mailroom-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${PGUSER:-mailroom}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-mailroom}
+      POSTGRES_DB: ${PGDATABASE:-mailroom}
+    ports:
+      - "${PGPORT:-5432}:5432"
+    volumes:
+      - mailroom_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-mailroom} -d ${PGDATABASE:-mailroom}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  mailroom_pg:

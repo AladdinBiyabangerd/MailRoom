@@ -1,0 +1,22 @@
+{
+  "name": "mailroom",
+  "private": true,
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"npm run dev -w @mailroom/api\" \"npm run dev -w @mailroom/web\"",
+    "build": "npm run build -w @mailroom/web && npm run build -w @mailroom/api",
+    "start": "npm run start -w @mailroom/api",
+    "db:generate": "npm run prisma:generate -w @mailroom/api",
+    "db:migrate": "npm run prisma:migrate -w @mailroom/api",
+    "db:deploy": "npm run prisma:deploy -w @mailroom/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
