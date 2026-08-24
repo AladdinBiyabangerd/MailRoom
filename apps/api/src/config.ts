@@ -86,6 +86,8 @@ export const config = {
   accessTokenTtlMinutes: envInt("ADMIN_ACCESS_TOKEN_TTL_MINUTES", 480),
   refreshTokenValidityDays: envInt("ADMIN_REFRESH_TOKEN_VALIDITY_DAYS", 7),
   passwordResetExpirationMinutes: envInt("ADMIN_PASSWORD_RESET_EXPIRATION_MINUTES", 15),
+  /** When true, sign-up requires a pending user created by an admin. Keep the register path; default is open OTP sign-up. */
+  inviteOnlyRegistration: envBool("ADMIN_INVITE_ONLY_REGISTRATION", false),
   corsOriginPatterns: env(
     "ADMIN_CORS_ALLOWED_ORIGIN_PATTERNS",
     "http://localhost:*,http://127.0.0.1:*",

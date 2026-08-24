@@ -13,6 +13,7 @@ import { resendOtpRequest } from "@/api/auth";
 import { isDemoMode } from "@/api/client";
 import { DEMO_CREDENTIALS } from "@/api/auth";
 import { getApiErrorMessage, isInvalidCredentials } from "@/lib/api-error";
+import { INVITE_ONLY_REGISTRATION } from "@/lib/auth-features";
 
 export default function Login() {
   const { t } = useTranslation();
@@ -173,9 +174,11 @@ export default function Login() {
         </Button>
 
         <p className="text-center text-sm text-muted-foreground">
-          {t("auth.register.invited")}{" "}
+          {INVITE_ONLY_REGISTRATION ? t("auth.register.invited") : t("auth.register.noAccount")}{" "}
           <Link to="/register" className="font-medium text-primary hover:underline">
-            {t("auth.register.completeRegistration")}
+            {INVITE_ONLY_REGISTRATION
+              ? t("auth.register.completeRegistration")
+              : t("auth.register.signUp")}
           </Link>
         </p>
       </form>

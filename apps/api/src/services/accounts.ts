@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "../db.js";
-import { PERMISSIONS, SUPER_ADMIN_ROLE } from "../permissions.js";
+import { PERMISSIONS, SUPER_ADMIN_ROLE, DEFAULT_SIGNUP_ROLE } from "../permissions.js";
 import { Codes, Msg, bad, notFound } from "../errors.js";
 
 function toApiRoleName(name: string | null | undefined) {
@@ -266,7 +266,7 @@ export async function updateRole(
 ) {
   const role = await prisma.adminRole.findUnique({ where: { id } });
   if (!role) throw notFound(Codes.NOT_FOUND, Msg.NOT_FOUND, Msg.ENTITY_ROLE);
-  if (role.systemRole || role.name === SUPER_ADMIN_ROLE) {
+  if (role.systemRole || role.name === SUPER_ADMIN_ROLE || role.name === DEFAULT_SIGNUP_ROLE) {
     throw bad(Codes.SYSTEM_ROLE_PROTECTED, Msg.SYSTEM_ROLE_PROTECTED);
   }
   const name = body.name.trim();
@@ -295,7 +295,7 @@ export async function deleteRole(id: number) {
     include: { userRoles: true },
   });
   if (!role) throw notFound(Codes.NOT_FOUND, Msg.NOT_FOUND, Msg.ENTITY_ROLE);
-  if (role.systemRole || role.name === SUPER_ADMIN_ROLE) {
+  if (role.systemRole || role.name === SUPER_ADMIN_ROLE || role.name === DEFAULT_SIGNUP_ROLE) {
     throw bad(Codes.SYSTEM_ROLE_PROTECTED, Msg.SYSTEM_ROLE_PROTECTED);
   }
   if (role.userRoles.length) throw bad(Codes.ROLE_IN_USE, Msg.ROLE_IN_USE);

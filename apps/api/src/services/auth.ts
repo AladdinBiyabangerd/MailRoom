@@ -2,6 +2,7 @@ import { randomInt } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "../db.js";
 import { config } from "../config.js";
+import { DEFAULT_SIGNUP_ROLE } from "../permissions.js";
 import { Codes, Msg, bad, forbidden, notFound, unauthorized } from "../errors.js";
 import { mintAccessToken, newRefreshTokenValue } from "../auth.js";
 import { loadSmtpSettings, sendHtmlEmail, fallbackFrom } from "../mail/sender.js";
@@ -129,22 +130,70 @@ export async function register(body: {
 }) {
   if (body.password !== body.passwordConfirm) throw bad(Codes.BAD_REQUEST, Msg.PASSWORD_MISMATCH);
   const email = normalizeEmail(body.email);
+  const firstName = body.firstName.trim();
+  const lastName = body.lastName.trim();
   const user = await prisma.adminUser.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
-  if (!user) throw forbidden(Codes.REGISTRATION_NOT_INVITED, Msg.REGISTRATION_NOT_INVITED);
-  if (user.status === "ACTIVE") throw bad(Codes.EMAIL_ALREADY_EXISTS, Msg.EMAIL_ALREADY_EXISTS, email);
+
+  if (user) {
+    await completeInvitedRegistration(user, { firstName, lastName, password: body.password });
+    return;
+  }
+
+  if (config.inviteOnlyRegistration) {
+    throw forbidden(Codes.REGISTRATION_NOT_INVITED, Msg.REGISTRATION_NOT_INVITED);
+  }
+
+  await createOpenRegistration({ email, firstName, lastName, password: body.password });
+}
+
+/** Kept so invite-only sign-up can be turned back on without rewriting this path. */
+async function completeInvitedRegistration(
+  user: { id: number; email: string; status: string },
+  body: { firstName: string; lastName: string; password: string },
+) {
+  if (user.status === "ACTIVE") throw bad(Codes.EMAIL_ALREADY_EXISTS, Msg.EMAIL_ALREADY_EXISTS, user.email);
   if (user.status === "INACTIVE") throw forbidden(Codes.ACCOUNT_INACTIVE, Msg.ACCOUNT_INACTIVE);
   if (user.status !== "PENDING") throw forbidden(Codes.REGISTRATION_NOT_INVITED, Msg.REGISTRATION_NOT_INVITED);
 
   await prisma.adminUser.update({
     where: { id: user.id },
     data: {
-      firstName: body.firstName.trim(),
-      lastName: body.lastName.trim(),
+      firstName: body.firstName,
+      lastName: body.lastName,
       password: await bcrypt.hash(body.password, 10),
       status: "PENDING",
     },
   });
   await sendOtp(user.email, displayName(body.firstName, body.lastName), "ACCOUNT_ACTIVATION");
+}
+
+async function createOpenRegistration(body: {
+  email: string;
+  firstName: string;
+  lastName: string;
+  password: string;
+}) {
+  const role = await prisma.adminRole.findUnique({ where: { name: DEFAULT_SIGNUP_ROLE } });
+  if (!role) throw notFound(Codes.NOT_FOUND, Msg.NOT_FOUND, Msg.ENTITY_ROLE);
+
+  try {
+    await prisma.adminUser.create({
+      data: {
+        email: body.email,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        password: await bcrypt.hash(body.password, 10),
+        status: "PENDING",
+        userRoles: { create: { roleId: role.id } },
+      },
+    });
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "P2002") {
+      throw bad(Codes.EMAIL_ALREADY_EXISTS, Msg.EMAIL_ALREADY_EXISTS, body.email);
+    }
+    throw error;
+  }
+  await sendOtp(body.email, displayName(body.firstName, body.lastName), "ACCOUNT_ACTIVATION");
 }
 
 export async function login(emailRaw: string, password: string) {

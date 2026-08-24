@@ -111,15 +111,20 @@
       "allowedChars": "İcazə verilir: hərflər, rəqəmlər, !@#$%^&*"
     },
     "register": {
-      "title": "Qeydiyyatı tamamla",
-      "subtitle": "Admin hesabınızı aktivləşdirmək üçün şifrə təyin edin",
+      "title": "Qeydiyyat",
+      "subtitle": "Məlumatlarınızı daxil edin. E-poçtunuza təsdiq kodu göndərəcəyik.",
+      "titleInvite": "Qeydiyyatı tamamla",
+      "subtitleInvite": "Admin hesabınızı aktivləşdirmək üçün şifrə təyin edin",
       "firstName": "Ad",
       "lastName": "Soyad",
       "confirmPassword": "Şifrəni təsdiqlə",
       "submit": "Hesab yarat",
       "submitting": "Hesab yaradılır…",
-      "failed": "Qeydiyyat uğursuz oldu. Dəvət almamış ola bilərsiniz.",
+      "failed": "Qeydiyyat uğursuz oldu. Yenidən cəhd edin.",
+      "failedInvite": "Qeydiyyat uğursuz oldu. Dəvət almamış ola bilərsiniz.",
       "hasAccount": "Artıq hesabınız var?",
+      "noAccount": "Hesabınız yoxdur?",
+      "signUp": "Qeydiyyat",
       "invited": "Administrator tərəfindən dəvət olunmusunuz?",
       "completeRegistration": "Qeydiyyatı tamamla"
     },

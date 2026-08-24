@@ -1,19 +1,19 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "./db.js";
 import { config } from "./config.js";
-import { PERMISSIONS, SUPER_ADMIN_ROLE } from "./permissions.js";
+import { DEFAULT_SIGNUP_ROLE, PERMISSIONS, SIGNUP_PERMISSIONS, SUPER_ADMIN_ROLE } from "./permissions.js";
 
-export async function bootstrapAdmin() {
+async function ensureRole(name: string, description: string, permissions: readonly string[]) {
   const now = new Date();
   const role = await prisma.adminRole.upsert({
-    where: { name: SUPER_ADMIN_ROLE },
+    where: { name },
     create: {
-      name: SUPER_ADMIN_ROLE,
-      description: "Full access",
+      name,
+      description,
       systemRole: true,
       updatedAt: now,
       permissions: {
-        create: PERMISSIONS.map((permission) => ({ permission })),
+        create: permissions.map((permission) => ({ permission })),
       },
     },
     update: { systemRole: true, updatedAt: now },
@@ -21,12 +21,18 @@ export async function bootstrapAdmin() {
 
   const existingPerms = await prisma.adminRolePermission.findMany({ where: { roleId: role.id } });
   const held = new Set(existingPerms.map((p) => p.permission));
-  const missing = PERMISSIONS.filter((p) => !held.has(p));
+  const missing = permissions.filter((p) => !held.has(p));
   if (missing.length) {
     await prisma.adminRolePermission.createMany({
       data: missing.map((permission) => ({ roleId: role.id, permission })),
     });
   }
+  return role;
+}
+
+export async function bootstrapAdmin() {
+  const role = await ensureRole(SUPER_ADMIN_ROLE, "Full access", PERMISSIONS);
+  await ensureRole(DEFAULT_SIGNUP_ROLE, "Self-registered user", SIGNUP_PERMISSIONS);
 
   if (!config.bootstrap.enabled || !config.bootstrap.email || !config.bootstrap.password) {
     return;

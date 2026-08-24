@@ -111,15 +111,20 @@
       "allowedChars": "Allowed: letters, digits, !@#$%^&*"
     },
     "register": {
-      "title": "Complete registration",
-      "subtitle": "Set your password to activate your admin account",
+      "title": "Create an account",
+      "subtitle": "Enter your details. We'll send a verification code to your email.",
+      "titleInvite": "Complete registration",
+      "subtitleInvite": "Set your password to activate your admin account",
       "firstName": "First name",
       "lastName": "Last name",
       "confirmPassword": "Confirm password",
       "submit": "Create account",
       "submitting": "Creating account…",
-      "failed": "Registration failed. You may not be invited yet.",
+      "failed": "Registration failed. Please try again.",
+      "failedInvite": "Registration failed. You may not be invited yet.",
       "hasAccount": "Already have an account?",
+      "noAccount": "Don't have an account?",
+      "signUp": "Sign up",
       "invited": "Invited by an administrator?",
       "completeRegistration": "Complete registration"
     },

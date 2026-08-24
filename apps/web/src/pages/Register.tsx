@@ -25,6 +25,7 @@ import {
 } from "@/api/auth";
 import { useAuth } from "@/context/AuthContext";
 import { getApiErrorMessage } from "@/lib/api-error";
+import { INVITE_ONLY_REGISTRATION } from "@/lib/auth-features";
 
 function createRegisterSchema(t: (key: string) => string) {
   return z
@@ -83,7 +84,12 @@ export default function Register() {
       setEmail(data.email);
       setStage("VERIFY");
     } catch (err) {
-      setError(getApiErrorMessage(err, t("auth.register.failed")));
+      setError(
+        getApiErrorMessage(
+          err,
+          INVITE_ONLY_REGISTRATION ? t("auth.register.failedInvite") : t("auth.register.failed"),
+        ),
+      );
     } finally {
       setIsLoading(false);
     }
@@ -113,10 +119,18 @@ export default function Register() {
 
   return (
     <AuthLayout
-      title={stage === "REGISTER" ? t("auth.register.title") : t("auth.otp.title")}
+      title={
+        stage === "REGISTER"
+          ? INVITE_ONLY_REGISTRATION
+            ? t("auth.register.titleInvite")
+            : t("auth.register.title")
+          : t("auth.otp.title")
+      }
       description={
         stage === "REGISTER"
-          ? t("auth.register.subtitle")
+          ? INVITE_ONLY_REGISTRATION
+            ? t("auth.register.subtitleInvite")
+            : t("auth.register.subtitle")
           : t("auth.otp.subtitle", { email })
       }
     >
