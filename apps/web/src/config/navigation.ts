@@ -27,19 +27,29 @@ export interface NavSection {
 
 export const navSections: NavSection[] = [
   {
-    titleKey: "nav.sectionManagement",
+    titleKey: "nav.sectionCompose",
     items: [
       { to: "/emails/compose", labelKey: "nav.emails", icon: Mail, permission: "emails:read" },
       { to: "/emails/campaigns", labelKey: "nav.campaigns", icon: Megaphone, permission: "emails:read" },
+    ],
+  },
+  {
+    titleKey: "nav.sectionLibrary",
+    items: [
       { to: "/emails/templates", labelKey: "nav.emailTemplates", icon: FileText, permission: "emails:read" },
       { to: "/emails/contacts", labelKey: "nav.emailContacts", icon: Contact, permission: "emails:read" },
+    ],
+  },
+  {
+    titleKey: "nav.sectionReports",
+    items: [
       { to: "/emails/history", labelKey: "nav.emailsHistory", icon: MailCheck, permission: "emails:read" },
       { to: "/emails/analytics", labelKey: "nav.emailAnalytics", icon: BarChart3, permission: "emails:read" },
       { to: "/emails/suppressions", labelKey: "nav.emailSuppressions", icon: UserX, permission: "emails:read" },
     ],
   },
   {
-    titleKey: "nav.sectionPlatform",
+    titleKey: "nav.sectionSettings",
     items: [
       {
         to: "/email-delivery",

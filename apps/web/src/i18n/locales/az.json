@@ -164,6 +164,10 @@
   },
   "nav": {
     "sectionMain": "Ümumi",
+    "sectionCompose": "Yazışma",
+    "sectionLibrary": "Kitabxana",
+    "sectionReports": "Hesabatlar",
+    "sectionSettings": "Tənzimləmələr",
     "sectionManagement": "İdarəetmə",
     "sectionPlatform": "Platforma",
     "dashboard": "Analitika",

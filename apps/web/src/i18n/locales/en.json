@@ -164,6 +164,10 @@
   },
   "nav": {
     "sectionMain": "Overview",
+    "sectionCompose": "Compose",
+    "sectionLibrary": "Library",
+    "sectionReports": "Reports",
+    "sectionSettings": "Settings",
     "sectionManagement": "Management",
     "sectionPlatform": "Platform",
     "dashboard": "Analytics",

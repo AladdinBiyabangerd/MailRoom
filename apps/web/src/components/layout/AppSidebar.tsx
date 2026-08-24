@@ -32,21 +32,24 @@ export function AppSidebar({
       </div>
 
       <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
-        {navSections.map((section) => {
-          const visibleItems = section.items.filter(
-            (item) => !item.permission || can(item.permission),
-          );
-          if (visibleItems.length === 0) return null;
-
-          return (
-          <div key={section.titleKey}>
+        {navSections
+          .map((section) => ({
+            ...section,
+            items: section.items.filter((item) => !item.permission || can(item.permission)),
+          }))
+          .filter((section) => section.items.length > 0)
+          .map((section, index) => (
+          <div
+            key={section.titleKey}
+            className={cn(collapsed && index > 0 && "border-t border-sidebar-border/60 pt-3")}
+          >
             {!collapsed && (
               <p className="px-3 pb-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-sidebar-foreground/45">
                 {t(section.titleKey)}
               </p>
             )}
             <div className="space-y-0.5">
-              {visibleItems.map((item) => {
+              {section.items.map((item) => {
                 const Icon = item.icon;
                 return (
                   <NavLink
@@ -72,8 +75,7 @@ export function AppSidebar({
               })}
             </div>
           </div>
-          );
-        })}
+          ))}
       </nav>
 
       {!collapsed && (
