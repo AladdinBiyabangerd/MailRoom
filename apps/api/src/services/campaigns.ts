@@ -170,6 +170,7 @@ export async function sendCampaign(
     scheduledAt?: string;
     senderIdentityId?: number;
     includeUnsubscribe?: boolean;
+    greetWithName?: boolean;
     attachments?: { fileName: string; contentType: string; contentBase64: string }[];
   },
 ) {
@@ -186,6 +187,10 @@ export async function sendCampaign(
   if (!subject.trim()) throw bad(Codes.EMAIL_CAMPAIGN, Msg.CAMPAIGN_MISSING_SUBJECT);
   if (!bodyHtml.trim()) throw bad(Codes.EMAIL_CAMPAIGN, Msg.CAMPAIGN_MISSING_BODY);
 
+  const recipientNames = Object.fromEntries(
+    campaign.contacts.map((c) => [normalizeEmail(c.email), c.name]),
+  );
+
   return sendAdminEmail(actor, {
     to: campaign.contacts.map((c) => c.email),
     cc: overrides?.cc,
@@ -196,6 +201,8 @@ export async function sendCampaign(
     scheduledAt: overrides?.scheduledAt,
     senderIdentityId: overrides?.senderIdentityId,
     includeUnsubscribe: overrides?.includeUnsubscribe ?? true,
+    greetWithName: overrides?.greetWithName !== false,
+    recipientNames,
     attachments: overrides?.attachments,
   });
 }

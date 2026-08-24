@@ -47,6 +47,8 @@ export interface SendEmailRequest {
   scheduledAt?: string;
   senderIdentityId?: number;
   includeUnsubscribe?: boolean;
+  greetWithName?: boolean;
+  recipientNames?: Record<string, string | null>;
   attachments?: EmailAttachmentPayload[];
 }
 

@@ -3,7 +3,14 @@ import { prisma } from "../db.js";
 import { config } from "../config.js";
 import { Codes, Msg, bad, notFound } from "../errors.js";
 import type { AuthUser } from "../auth.js";
-import { formatFromLabel, unsubscribeUrl, withTrackingPixel, withUnsubscribeFooter } from "../mail/html.js";
+import {
+  formatFromLabel,
+  resolveGreetingName,
+  unsubscribeUrl,
+  withPersonalizedGreeting,
+  withTrackingPixel,
+  withUnsubscribeFooter,
+} from "../mail/html.js";
 import { assertAttachmentCount, assertAttachmentSize, decodeAttachmentBase64 } from "../mail/attachments.js";
 import { fallbackFrom, loadSmtpSettings, sendHtmlEmail } from "../mail/sender.js";
 import { deleteCurrentDraft, loadTemplateAttachmentFiles, resolveFromAddress } from "./catalog.js";
@@ -52,6 +59,7 @@ export interface SendPayload {
   scheduledAt?: string;
   senderIdentityId?: number;
   includeUnsubscribe?: boolean;
+  greetWithName?: boolean;
   resendOfEmailId?: number;
   fromOverride?: { email: string; displayName?: string | null };
   recipientNames?: Record<string, string | null>;
@@ -120,6 +128,7 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
 
   const includeUnsubscribe =
     request.includeUnsubscribe === true || (request.includeUnsubscribe == null && campaignId != null);
+  const greetWithName = request.greetWithName !== false;
   const from =
     request.fromOverride ?? (await resolveFromAddress(request.senderIdentityId ?? null));
 
@@ -147,11 +156,12 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
       campaignId: campaignId ?? null,
       resendOfEmailId: request.resendOfEmailId ?? null,
       includeUnsubscribe,
+      greetWithName,
       recipients: {
         create: [
           ...to.map((e) => ({
             email: e,
-            name: request.recipientNames?.[e] ?? null,
+            name: resolveGreetingName(request.recipientNames?.[e], e),
             recipientType: "TO",
             status: "QUEUED",
             openTrackingToken: randomUUID(),
@@ -159,7 +169,7 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
           })),
           ...cc.map((e) => ({
             email: e,
-            name: request.recipientNames?.[e] ?? null,
+            name: resolveGreetingName(request.recipientNames?.[e], e),
             recipientType: "CC",
             status: "QUEUED",
             openTrackingToken: randomUUID(),
@@ -167,7 +177,7 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
           })),
           ...bcc.map((e) => ({
             email: e,
-            name: request.recipientNames?.[e] ?? null,
+            name: resolveGreetingName(request.recipientNames?.[e], e),
             recipientType: "BCC",
             status: "QUEUED",
             openTrackingToken: randomUUID(),
@@ -234,6 +244,12 @@ export async function dispatchEmail(sentEmailId: number) {
     }
 
     let htmlBody = email.bodyHtml;
+    if (email.greetWithName) {
+      htmlBody = withPersonalizedGreeting(
+        htmlBody,
+        resolveGreetingName(recipient.name, recipient.email),
+      );
+    }
     if (email.includeUnsubscribe && recipient.unsubscribeToken) {
       htmlBody = withUnsubscribeFooter(htmlBody, recipient.unsubscribeToken, config.publicBaseUrl);
     }
@@ -434,6 +450,7 @@ export async function resendEmail(id: number, actor: AuthUser, modeRaw?: string)
     campaignId: original.campaignId ?? undefined,
     resendOfEmailId: original.id,
     includeUnsubscribe: original.includeUnsubscribe,
+    greetWithName: original.greetWithName,
     senderIdentityId,
     fromOverride: original.fromEmail
       ? { email: original.fromEmail, displayName: original.fromName }

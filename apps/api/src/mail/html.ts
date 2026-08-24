@@ -19,6 +19,47 @@ function stripSlash(url: string): string {
   return url.endsWith("/") ? url.slice(0, -1) : url;
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/** Treat blank or email-as-label as no display name. */
+export function resolveGreetingName(
+  name: string | null | undefined,
+  email?: string | null,
+): string | null {
+  const trimmed = name?.trim();
+  if (!trimmed) return null;
+  if (email && trimmed.toLowerCase() === email.trim().toLowerCase()) return null;
+  return trimmed;
+}
+
+/**
+ * Prepends "Salam {name}," or "Salam," at the start of the email body content.
+ * Inserts after an opening &lt;body&gt; tag when present.
+ */
+export function withPersonalizedGreeting(
+  htmlBody: string,
+  name: string | null | undefined,
+): string {
+  if (!htmlBody) return htmlBody;
+  const greeting = name?.trim()
+    ? `<p>Salam ${escapeHtml(name.trim())},</p>`
+    : `<p>Salam,</p>`;
+
+  const bodyOpen = htmlBody.match(/<body\b[^>]*>/i);
+  if (bodyOpen && bodyOpen.index != null) {
+    const insertAt = bodyOpen.index + bodyOpen[0].length;
+    return htmlBody.slice(0, insertAt) + greeting + htmlBody.slice(insertAt);
+  }
+  return greeting + htmlBody;
+}
+
 export function withTrackingPixel(htmlBody: string, trackingToken: string, publicBaseUrl: string): string {
   if (!isPubliclyReachableBaseUrl(publicBaseUrl) || !htmlBody || !trackingToken) return htmlBody;
   const base = stripSlash(publicBaseUrl);

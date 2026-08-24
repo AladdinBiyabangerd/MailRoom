@@ -203,6 +203,7 @@ model SentEmail {
   campaignId         Int?     @map("campaign_id")
   resendOfEmailId    Int?     @map("resend_of_email_id")
   includeUnsubscribe Boolean  @default(false) @map("include_unsubscribe")
+  greetWithName      Boolean  @default(true) @map("greet_with_name")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
   recipients         SentEmailRecipient[]

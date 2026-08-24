@@ -756,6 +756,8 @@
     "draftRestored": "Your saved draft was restored",
     "includeUnsubscribe": "Include unsubscribe link",
     "includeUnsubscribeHint": "Adds a footer link and List-Unsubscribe header. Gmail often files this under Promotions or Spam — turn it off for personal tests.",
+    "greetWithName": "Greet with recipient name",
+    "greetWithNameHint": "Adds “Salam {name},” at the top of each email. If a name is missing, only “Salam,” is used. Turn off if you already wrote your own greeting.",
     "fromSender": "From (sender)",
     "fromSenderPlaceholder": "Choose sender identity",
     "fromSenderHint": "How recipients see the sender name in their inbox. Configure identities under Email Delivery → Sender addresses.",

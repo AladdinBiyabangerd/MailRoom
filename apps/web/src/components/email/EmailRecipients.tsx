@@ -122,7 +122,7 @@ export function EmailRecipients({
 
   const handleCustomAdd = () => {
     if (!EMAIL_RE.test(customEmail.trim())) return;
-    addRecipient(customEmail, customEmail.trim());
+    addRecipient(customEmail);
     setCustomEmail("");
   };
 

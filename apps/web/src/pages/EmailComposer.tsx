@@ -43,6 +43,11 @@ import {
 } from "@/lib/schedule";
 import { htmlHasVisibleContent } from "@/lib/html-source";
 import type { EmailAttachmentItem } from "@/lib/attachments";
+import {
+  buildRecipientNames,
+  resolveGreetingName,
+  withPersonalizedGreeting,
+} from "@/lib/emailGreeting";
 
 const CAMPAIGN_LIST_PARAMS = { page: 1, limit: 100 };
 const DRAFT_SAVE_DELAY_MS = 800;
@@ -77,6 +82,7 @@ export default function EmailComposer() {
   const [attachments, setAttachments] = useState<EmailAttachmentItem[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("none");
   const [includeUnsubscribe, setIncludeUnsubscribe] = useState(false);
+  const [greetWithName, setGreetWithName] = useState(true);
   const [senderIdentityId, setSenderIdentityId] = useState("");
   const [sendMode, setSendMode] = useState<SendMode>("now");
   const [scheduledAtLocal, setScheduledAtLocal] = useState("");
@@ -333,6 +339,8 @@ export default function EmailComposer() {
       campaignId:
         selectedCampaignId !== "none" ? Number(selectedCampaignId) : undefined,
       includeUnsubscribe,
+      greetWithName,
+      recipientNames: buildRecipientNames([...to, ...cc, ...bcc]),
       senderIdentityId: senderIdentityId ? Number(senderIdentityId) : undefined,
       scheduledAt,
       attachments: attachmentPayload.length ? attachmentPayload : undefined,
@@ -350,6 +358,7 @@ export default function EmailComposer() {
     setAttachments([]);
     setSelectedCampaignId("none");
     setIncludeUnsubscribe(false);
+    setGreetWithName(true);
     setSenderIdentityId("");
     setSendMode("now");
     setScheduledAtLocal("");
@@ -366,6 +375,14 @@ export default function EmailComposer() {
     recipients
       .map((r) => (r.label ? `${r.label} <${r.email}>` : r.email))
       .join(", ");
+
+  const previewHtml = (() => {
+    if (!greetWithName || isBodyEmpty(bodyHtml)) return bodyHtml;
+    const sample = to[0]
+      ? resolveGreetingName(to[0].label, to[0].email)
+      : null;
+    return withPersonalizedGreeting(bodyHtml, sample);
+  })();
 
   return (
     <>
@@ -548,6 +565,17 @@ export default function EmailComposer() {
           <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
             <div className="flex items-center gap-2">
               <Switch
+                id="greet-with-name"
+                checked={greetWithName}
+                onCheckedChange={setGreetWithName}
+              />
+              <Label htmlFor="greet-with-name" className="font-normal">
+                {t("emails.greetWithName")}
+              </Label>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("emails.greetWithNameHint")}</p>
+            <div className="flex items-center gap-2">
+              <Switch
                 id="include-unsubscribe"
                 checked={includeUnsubscribe}
                 onCheckedChange={setIncludeUnsubscribe}
@@ -610,7 +638,7 @@ export default function EmailComposer() {
         open={previewOpen}
         onOpenChange={setPreviewOpen}
         subject={subject}
-        html={bodyHtml}
+        html={previewHtml}
         to={formatRecipientList(to) || undefined}
         cc={showCc && cc.length ? formatRecipientList(cc) : undefined}
         bcc={showBcc && bcc.length ? formatRecipientList(bcc) : undefined}

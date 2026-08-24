@@ -756,6 +756,8 @@
     "draftRestored": "Saxlanılmış qaralama bərpa olundu",
     "includeUnsubscribe": "Abunəlikdən çıxma linki əlavə et",
     "includeUnsubscribeHint": "Footer linki və List-Unsubscribe başlığı əlavə edir. Gmail bunu tez-tez Tanıtımlar və ya Spam qovluğuna atır — şəxsi test üçün söndürün.",
+    "greetWithName": "Ad ilə salamla",
+    "greetWithNameHint": "Hər emailin əvvəlinə “Salam {ad},” əlavə edir. Ad yoxdursa yalnız “Salam,” yazılır. Öz salamlamanız varsa söndürün.",
     "fromSender": "Kimdən (göndərən)",
     "fromSenderPlaceholder": "Göndərən seçin",
     "fromSenderHint": "Alıcılar inbox-da göndərənin adını belə görür. Ünvanları E-poçt Çatdırılması → Göndərən ünvanlar bölməsində idarə edin.",

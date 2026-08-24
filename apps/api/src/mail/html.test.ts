@@ -1,9 +1,54 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { embedInlineImages } from "./html.js";
+import {
+  embedInlineImages,
+  resolveGreetingName,
+  withPersonalizedGreeting,
+} from "./html.js";
 
 const PIXEL_B64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+describe("withPersonalizedGreeting", () => {
+  it("prepends Salam with name for fragment html", () => {
+    const result = withPersonalizedGreeting("<p>Body</p>", "Aladdin Alizade");
+    assert.equal(result, "<p>Salam Aladdin Alizade,</p><p>Body</p>");
+  });
+
+  it("prepends Salam without name when name is missing", () => {
+    const result = withPersonalizedGreeting("<p>Body</p>", null);
+    assert.equal(result, "<p>Salam,</p><p>Body</p>");
+  });
+
+  it("inserts after body open tag", () => {
+    const html = "<html><body class=\"x\"><p>Hi</p></body></html>";
+    const result = withPersonalizedGreeting(html, "Ada");
+    assert.equal(result, '<html><body class="x"><p>Salam Ada,</p><p>Hi</p></body></html>');
+  });
+
+  it("escapes html in the name", () => {
+    const result = withPersonalizedGreeting("<p>x</p>", `<img src=x onerror=alert(1)>`);
+    assert.equal(
+      result,
+      "<p>Salam &lt;img src=x onerror=alert(1)&gt;,</p><p>x</p>",
+    );
+  });
+});
+
+describe("resolveGreetingName", () => {
+  it("returns trimmed name", () => {
+    assert.equal(resolveGreetingName("  Ada  ", "a@b.com"), "Ada");
+  });
+
+  it("returns null for blank", () => {
+    assert.equal(resolveGreetingName("  ", "a@b.com"), null);
+    assert.equal(resolveGreetingName(null), null);
+  });
+
+  it("returns null when name equals email", () => {
+    assert.equal(resolveGreetingName("A@B.com", "a@b.com"), null);
+  });
+});
 
 describe("embedInlineImages", () => {
   it("leaves html without data images unchanged", () => {
