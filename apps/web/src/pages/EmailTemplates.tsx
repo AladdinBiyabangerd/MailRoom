@@ -3,10 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { FileText, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Eye, FileText, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { PermissionGate } from "@/components/auth/PermissionGate";
+import { EmailPreviewDialog } from "@/components/email/EmailPreview";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,6 +33,7 @@ export default function EmailTemplates() {
   const queryClient = useQueryClient();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<EmailTemplate | null>(null);
+  const [previewing, setPreviewing] = useState<EmailTemplate | null>(null);
 
   const {
     data: templatesPage,
@@ -77,6 +79,16 @@ export default function EmailTemplates() {
         align: "right",
         render: (row) => (
           <div className="flex justify-end gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              title={t("emails.preview")}
+              aria-label={t("emails.preview")}
+              onClick={() => setPreviewing(row)}
+            >
+              <Eye className="h-3.5 w-3.5" />
+            </Button>
             <PermissionGate permission="emails:write">
               <Button type="button" variant="ghost" size="sm" asChild>
                 <Link to={`/emails/templates/${row.id}/edit`}>
@@ -148,6 +160,18 @@ export default function EmailTemplates() {
           />
         </div>
       )}
+
+      <EmailPreviewDialog
+        open={!!previewing}
+        onOpenChange={(open) => !open && setPreviewing(null)}
+        subject={previewing?.subject}
+        html={previewing?.htmlBody ?? ""}
+        attachments={
+          previewing?.attachments?.length
+            ? previewing.attachments.map((a) => a.fileName).join(", ")
+            : undefined
+        }
+      />
 
       <Dialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
         <DialogContent>
