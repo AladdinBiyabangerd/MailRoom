@@ -1,11 +1,19 @@
 import { adminApi, isDemoMode } from "./client";
 
+export interface EmailTemplateAttachment {
+  id: number;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
 export interface EmailTemplate {
   id: number;
   name: string;
   description?: string;
   subject?: string;
   htmlBody?: string;
+  attachments?: EmailTemplateAttachment[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -22,6 +30,12 @@ export interface UpsertEmailTemplatePayload {
   description?: string;
   subject?: string;
   htmlBody?: string;
+  attachments?: {
+    id?: number;
+    fileName: string;
+    contentType: string;
+    contentBase64?: string;
+  }[];
 }
 
 const demoTemplates: EmailTemplate[] = [
@@ -86,7 +100,7 @@ export async function createEmailTemplateRequest(
 ): Promise<EmailTemplate> {
   if (isDemoMode) {
     await new Promise((r) => setTimeout(r, 350));
-    return { id: Date.now(), ...payload };
+    return { id: Date.now(), ...payload, attachments: [] };
   }
 
   const { data } = await adminApi.post<EmailTemplate>("/email-templates", payload);
@@ -99,7 +113,7 @@ export async function updateEmailTemplateRequest(
 ): Promise<EmailTemplate> {
   if (isDemoMode) {
     await new Promise((r) => setTimeout(r, 350));
-    return { id, ...payload };
+    return { id, ...payload, attachments: [] };
   }
 
   const { data } = await adminApi.put<EmailTemplate>(`/email-templates/${id}`, payload);
@@ -121,6 +135,11 @@ export function templateToDraft(template: EmailTemplate): UpsertEmailTemplatePay
     description: template.description ?? "",
     subject: template.subject ?? "",
     htmlBody: template.htmlBody ?? "",
+    attachments: (template.attachments ?? []).map((a) => ({
+      id: a.id,
+      fileName: a.fileName,
+      contentType: a.contentType,
+    })),
   };
 }
 
@@ -129,4 +148,5 @@ export const emptyTemplateDraft = (): UpsertEmailTemplatePayload => ({
   description: "",
   subject: "",
   htmlBody: "",
+  attachments: [],
 });

@@ -103,8 +103,23 @@ model EmailTemplate {
   htmlBody    String?  @map("html_body")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
+  attachments EmailTemplateAttachment[]
 
   @@map("email_templates")
+}
+
+model EmailTemplateAttachment {
+  id          Int           @id @default(autoincrement())
+  templateId  Int           @map("template_id")
+  fileName    String        @map("file_name") @db.VarChar(255)
+  contentType String        @map("content_type") @db.VarChar(120)
+  size        Int
+  content     Bytes
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  template    EmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@map("email_template_attachments")
 }
 
 model EmailAddressBookContact {

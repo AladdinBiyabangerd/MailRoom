@@ -2,6 +2,7 @@ import { prisma } from "../db.js";
 import { config } from "../config.js";
 import { Codes, Msg, bad, notFound } from "../errors.js";
 import { formatFromLabel } from "../mail/html.js";
+import { assertAttachmentCount, assertAttachmentSize, decodeAttachmentBase64 } from "../mail/attachments.js";
 import { normalizeEmail } from "./auth.js";
 
 function pageParams(page?: number, limit?: number) {
@@ -14,6 +15,13 @@ function iso(value: Date | null | undefined) {
   return value ? value.toISOString() : undefined;
 }
 
+const attachmentMetaSelect = {
+  id: true,
+  fileName: true,
+  contentType: true,
+  size: true,
+} as const;
+
 export async function searchTemplates(search?: string, page?: number, limit?: number) {
   const p = pageParams(page, limit);
   const where = search?.trim()
@@ -25,7 +33,13 @@ export async function searchTemplates(search?: string, page?: number, limit?: nu
       }
     : {};
   const [items, total] = await Promise.all([
-    prisma.emailTemplate.findMany({ where, orderBy: { updatedAt: "desc" }, skip: p.skip, take: p.limit }),
+    prisma.emailTemplate.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      skip: p.skip,
+      take: p.limit,
+      include: { attachments: { select: attachmentMetaSelect, orderBy: { id: "asc" } } },
+    }),
     prisma.emailTemplate.count({ where }),
   ]);
   return {
@@ -33,6 +47,22 @@ export async function searchTemplates(search?: string, page?: number, limit?: nu
     total,
     page: p.page,
     limit: p.limit,
+  };
+}
+
+export type TemplateAttachmentInput = {
+  id?: number;
+  fileName: string;
+  contentType: string;
+  contentBase64?: string;
+};
+
+function mapAttachmentMeta(a: { id: number; fileName: string; contentType: string; size: number }) {
+  return {
+    id: a.id,
+    fileName: a.fileName,
+    contentType: a.contentType,
+    size: a.size,
   };
 }
 
@@ -44,6 +74,7 @@ function mapTemplate(t: {
   htmlBody: string | null;
   createdAt: Date;
   updatedAt: Date;
+  attachments?: { id: number; fileName: string; contentType: string; size: number }[];
 }) {
   return {
     id: t.id,
@@ -51,21 +82,88 @@ function mapTemplate(t: {
     description: t.description ?? undefined,
     subject: t.subject ?? undefined,
     htmlBody: t.htmlBody ?? undefined,
+    attachments: (t.attachments ?? []).map(mapAttachmentMeta),
     createdAt: iso(t.createdAt),
     updatedAt: iso(t.updatedAt),
   };
 }
 
-export async function getTemplate(id: number) {
-  const t = await prisma.emailTemplate.findUnique({ where: { id } });
+async function loadTemplateWithAttachments(id: number) {
+  const t = await prisma.emailTemplate.findUnique({
+    where: { id },
+    include: { attachments: { select: attachmentMetaSelect, orderBy: { id: "asc" } } },
+  });
   if (!t) throw notFound(Codes.EMAIL_TEMPLATE, Msg.NOT_FOUND, Msg.ENTITY_EMAIL_TEMPLATE);
-  return mapTemplate(t);
+  return t;
+}
+
+export async function getTemplate(id: number) {
+  return mapTemplate(await loadTemplateWithAttachments(id));
 }
 
 export async function findTemplate(id: number) {
   const t = await prisma.emailTemplate.findUnique({ where: { id } });
   if (!t) throw notFound(Codes.EMAIL_TEMPLATE, Msg.NOT_FOUND, Msg.ENTITY_EMAIL_TEMPLATE);
   return t;
+}
+
+export async function loadTemplateAttachmentFiles(templateId: number) {
+  const rows = await prisma.emailTemplateAttachment.findMany({
+    where: { templateId },
+    orderBy: { id: "asc" },
+  });
+  return rows.map((a) => ({
+    fileName: a.fileName,
+    contentType: a.contentType,
+    content: Buffer.from(a.content),
+  }));
+}
+
+async function replaceTemplateAttachments(templateId: number, incoming?: TemplateAttachmentInput[]) {
+  if (incoming === undefined) {
+    return;
+  }
+  assertAttachmentCount(incoming.length);
+  const existing = await prisma.emailTemplateAttachment.findMany({
+    where: { templateId },
+    select: { id: true },
+  });
+  const existingIds = new Set(existing.map((row) => row.id));
+  const keepIds: number[] = [];
+
+  for (const item of incoming) {
+    if (!item.id) continue;
+    if (!existingIds.has(item.id)) {
+      throw bad(Codes.EMAIL_TEMPLATE, Msg.NOT_FOUND, Msg.ENTITY_EMAIL_TEMPLATE);
+    }
+    keepIds.push(item.id);
+  }
+
+  if (keepIds.length) {
+    await prisma.emailTemplateAttachment.deleteMany({
+      where: { templateId, id: { notIn: keepIds } },
+    });
+  } else {
+    await prisma.emailTemplateAttachment.deleteMany({ where: { templateId } });
+  }
+
+  for (const item of incoming) {
+    if (item.id) continue;
+    if (!item.contentBase64) {
+      throw bad(Codes.SENT_EMAIL, Msg.EMAIL_ATTACHMENT_INVALID);
+    }
+    const content = decodeAttachmentBase64(item.contentBase64);
+    assertAttachmentSize(content);
+    await prisma.emailTemplateAttachment.create({
+      data: {
+        templateId,
+        fileName: item.fileName.trim() || "attachment",
+        contentType: item.contentType.trim() || "application/octet-stream",
+        size: content.length,
+        content: new Uint8Array(content),
+      },
+    });
+  }
 }
 
 async function ensureUniqueTemplateName(name: string, excludeId?: number) {
@@ -80,6 +178,7 @@ export async function createTemplate(body: {
   description?: string;
   subject?: string;
   htmlBody?: string;
+  attachments?: TemplateAttachmentInput[];
 }) {
   const name = body.name.trim();
   await ensureUniqueTemplateName(name);
@@ -91,17 +190,24 @@ export async function createTemplate(body: {
       htmlBody: body.htmlBody?.trim() || null,
     },
   });
-  return mapTemplate(t);
+  await replaceTemplateAttachments(t.id, body.attachments ?? []);
+  return getTemplate(t.id);
 }
 
 export async function updateTemplate(
   id: number,
-  body: { name: string; description?: string; subject?: string; htmlBody?: string },
+  body: {
+    name: string;
+    description?: string;
+    subject?: string;
+    htmlBody?: string;
+    attachments?: TemplateAttachmentInput[];
+  },
 ) {
   await findTemplate(id);
   const name = body.name.trim();
   await ensureUniqueTemplateName(name, id);
-  const t = await prisma.emailTemplate.update({
+  await prisma.emailTemplate.update({
     where: { id },
     data: {
       name,
@@ -110,7 +216,8 @@ export async function updateTemplate(
       htmlBody: body.htmlBody?.trim() || null,
     },
   });
-  return mapTemplate(t);
+  await replaceTemplateAttachments(id, body.attachments);
+  return getTemplate(id);
 }
 
 export async function deleteTemplate(id: number) {

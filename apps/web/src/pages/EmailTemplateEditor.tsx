@@ -1,12 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Save } from "lucide-react";
+import { ArrowLeft, ImageIcon, Loader2, Save, Upload } from "lucide-react";
 import { EmailPreviewButton, EmailPreviewDialog } from "@/components/email/EmailPreview";
+import { EmailAttachmentPicker } from "@/components/email/EmailAttachmentPicker";
 import { PageHeader } from "@/components/common/PageHeader";
-import { RichTextEditor } from "@/components/email/RichTextEditor";
+import { RichTextEditor, type RichTextEditorHandle } from "@/components/email/RichTextEditor";
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +22,10 @@ import {
   updateEmailTemplateRequest,
   type UpsertEmailTemplatePayload,
 } from "@/api/email-templates";
+import { EDITOR_IMAGE_ACCEPT } from "@/lib/editor-image";
 import { asFullHtmlDocument, htmlHasVisibleContent } from "@/lib/html-source";
+import type { EmailAttachmentItem } from "@/lib/attachments";
+import { MAX_ATTACHMENTS } from "@/lib/attachments";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { queryKeys } from "@/lib/query-keys";
 import { usePermission } from "@/hooks/use-permission";
@@ -39,9 +43,12 @@ export default function EmailTemplateEditor() {
   const invalidId = !isNew && (!templateId || !Number.isFinite(templateId));
 
   const [draft, setDraft] = useState<UpsertEmailTemplatePayload>(emptyTemplateDraft());
+  const [attachments, setAttachments] = useState<EmailAttachmentItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [draftInitialized, setDraftInitialized] = useState(isNew);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const editorRef = useRef<RichTextEditorHandle>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const {
     data: loadedTemplate,
@@ -58,6 +65,15 @@ export default function EmailTemplateEditor() {
   useEffect(() => {
     if (!loadedTemplate || draftInitialized) return;
     setDraft(templateToDraft(loadedTemplate));
+    setAttachments(
+      (loadedTemplate.attachments ?? []).map((a) => ({
+        key: `saved-${a.id}`,
+        persistedId: a.id,
+        fileName: a.fileName,
+        contentType: a.contentType,
+        size: a.size,
+      })),
+    );
     setDraftInitialized(true);
   }, [draftInitialized, loadedTemplate]);
 
@@ -87,6 +103,12 @@ export default function EmailTemplateEditor() {
       htmlBody: htmlHasVisibleContent(draft.htmlBody ?? "")
         ? asFullHtmlDocument(draft.htmlBody ?? "")
         : undefined,
+      attachments: attachments.map((a) => ({
+        id: a.persistedId,
+        fileName: a.fileName,
+        contentType: a.contentType,
+        contentBase64: a.contentBase64,
+      })),
     };
 
     setSaving(true);
@@ -193,6 +215,46 @@ export default function EmailTemplateEditor() {
                 placeholder={t("emailTemplates.subjectPlaceholder")}
               />
             </div>
+
+            <div className="space-y-2">
+              <Label>{t("emails.attachments")}</Label>
+              <EmailAttachmentPicker
+                items={attachments}
+                onChange={setAttachments}
+                hint={t("emailTemplates.attachmentsHint", { max: MAX_ATTACHMENTS })}
+                extra={
+                  <div className="flex flex-wrap items-start gap-2">
+                    <input
+                      ref={imageInputRef}
+                      type="file"
+                      accept={EDITOR_IMAGE_ACCEPT}
+                      multiple
+                      className="hidden"
+                      onChange={(event) => {
+                        const files = Array.from(event.target.files ?? []);
+                        event.target.value = "";
+                        if (!files.length) return;
+                        editorRef.current?.insertImages(files);
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => imageInputRef.current?.click()}
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      {t("emails.editor.documentImageAdd")}
+                    </Button>
+                    <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
+                      <ImageIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      {t("emails.editor.documentEditHint")}
+                    </p>
+                  </div>
+                }
+              />
+            </div>
           </CardContent>
         </Card>
 
@@ -203,11 +265,13 @@ export default function EmailTemplateEditor() {
           </CardHeader>
           <CardContent>
             <RichTextEditor
+              ref={editorRef}
               value={draft.htmlBody ?? ""}
               onChange={(html) => setDraft({ ...draft, htmlBody: html })}
               placeholder={t("emailTemplates.bodyPlaceholder")}
               minHeight={560}
               layout="document"
+              hideDocumentImageBar
             />
           </CardContent>
         </Card>
@@ -218,6 +282,7 @@ export default function EmailTemplateEditor() {
         onOpenChange={setPreviewOpen}
         subject={draft.subject}
         html={draft.htmlBody ?? ""}
+        attachments={attachments.length ? attachments.map((a) => a.fileName).join(", ") : undefined}
       />
     </>
   );

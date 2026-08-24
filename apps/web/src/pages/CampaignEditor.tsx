@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { ArrowLeft, Loader2, Save, Send, Trash2 } from "lucide-react";
 import { EmailPreviewButton, EmailPreviewDialog } from "@/components/email/EmailPreview";
+import { EmailAttachmentPicker } from "@/components/email/EmailAttachmentPicker";
 import { PageHeader } from "@/components/common/PageHeader";
 import { RichTextEditor } from "@/components/email/RichTextEditor";
 import { BulkEmailPasteButton } from "@/components/email/BulkEmailPasteDialog";
@@ -54,6 +55,8 @@ import { getApiErrorMessage } from "@/lib/api-error";
 import { queryKeys } from "@/lib/query-keys";
 import { usePermission } from "@/hooks/use-permission";
 import { useQueryErrorToast } from "@/hooks/use-query-error-toast";
+import type { EmailAttachmentItem } from "@/lib/attachments";
+import { MAX_ATTACHMENTS } from "@/lib/attachments";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TEMPLATE_LIST_PARAMS = { page: 1, limit: 100 };
@@ -78,6 +81,7 @@ export default function CampaignEditor() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [scheduleSend, setScheduleSend] = useState(false);
+  const [sendAttachments, setSendAttachments] = useState<EmailAttachmentItem[]>([]);
   const [scheduledAtLocal, setScheduledAtLocal] = useState("");
   const [senderIdentityId, setSenderIdentityId] = useState("");
 
@@ -98,6 +102,8 @@ export default function CampaignEditor() {
     queryFn: () => fetchEmailTemplatesRequest(TEMPLATE_LIST_PARAMS),
   });
   const templates = templatesPage?.items ?? [];
+  const linkedTemplate = templates.find((template) => template.id === draft.templateId);
+  const templateAttachments = linkedTemplate?.attachments ?? [];
 
   useEffect(() => {
     if (!loadedCampaign || draftInitialized) return;
@@ -237,6 +243,17 @@ export default function CampaignEditor() {
       const payload = {
         ...(scheduledAt ? { scheduledAt } : {}),
         ...(senderIdentityId ? { senderIdentityId: Number(senderIdentityId) } : {}),
+        ...(sendAttachments.length
+          ? {
+              attachments: sendAttachments
+                .filter((a) => a.contentBase64)
+                .map((a) => ({
+                  fileName: a.fileName,
+                  contentType: a.contentType,
+                  contentBase64: a.contentBase64!,
+                })),
+            }
+          : {}),
       };
       const result = await sendCampaignRequest(
         campaignId,
@@ -383,6 +400,13 @@ export default function CampaignEditor() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">{t("campaigns.templateHint")}</p>
+                {templateAttachments.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("campaigns.templateAttachmentsHint", {
+                      files: templateAttachments.map((a) => a.fileName).join(", "),
+                    })}
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -504,6 +528,7 @@ export default function CampaignEditor() {
             setScheduleSend(false);
             setScheduledAtLocal("");
             setSenderIdentityId("");
+            setSendAttachments([]);
           }
         }}
       >
@@ -550,6 +575,22 @@ export default function CampaignEditor() {
                 </p>
               </div>
             )}
+            <div className="space-y-2">
+              <Label>{t("emails.attachments")}</Label>
+              {templateAttachments.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {t("campaigns.templateAttachmentsHint", {
+                    files: templateAttachments.map((a) => a.fileName).join(", "),
+                  })}
+                </p>
+              )}
+              <EmailAttachmentPicker
+                items={sendAttachments}
+                onChange={setSendAttachments}
+                max={Math.max(0, MAX_ATTACHMENTS - templateAttachments.length)}
+                disabled={templateAttachments.length >= MAX_ATTACHMENTS}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setSendOpen(false)}>
@@ -568,6 +609,10 @@ export default function CampaignEditor() {
         subject={draft.defaultSubject}
         html={draft.defaultHtmlBody ?? ""}
         to={draft.contacts.map((c) => c.email).join(", ") || undefined}
+        attachments={
+          [...templateAttachments.map((a) => a.fileName), ...sendAttachments.map((a) => a.fileName)].join(", ") ||
+          undefined
+        }
       />
     </>
   );

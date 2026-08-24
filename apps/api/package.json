@@ -10,7 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "test": "tsx --test src/mail/html.test.ts src/services/emails.resend.test.ts"
+    "test": "tsx --test src/mail/html.test.ts src/services/emails.analytics.test.ts src/services/emails.resend.test.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

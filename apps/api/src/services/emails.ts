@@ -4,8 +4,9 @@ import { config } from "../config.js";
 import { Codes, Msg, bad, notFound } from "../errors.js";
 import type { AuthUser } from "../auth.js";
 import { formatFromLabel, unsubscribeUrl, withTrackingPixel, withUnsubscribeFooter } from "../mail/html.js";
+import { assertAttachmentCount, assertAttachmentSize, decodeAttachmentBase64 } from "../mail/attachments.js";
 import { fallbackFrom, loadSmtpSettings, sendHtmlEmail } from "../mail/sender.js";
-import { deleteCurrentDraft, resolveFromAddress } from "./catalog.js";
+import { deleteCurrentDraft, loadTemplateAttachmentFiles, resolveFromAddress } from "./catalog.js";
 import { normalizeEmail } from "./auth.js";
 
 const FAILED = new Set(["FAILED", "BOUNCED"]);
@@ -31,12 +32,14 @@ export async function filterSuppressed(emails: string[]) {
   return normalized.filter((e) => !blocked.has(e));
 }
 
-function decodeAttachment(contentBase64: string) {
-  try {
-    return Buffer.from(contentBase64.replace(/\s+/g, ""), "base64");
-  } catch {
-    throw bad(Codes.SENT_EMAIL, Msg.EMAIL_ATTACHMENT_INVALID);
-  }
+function decodeRequestAttachments(
+  incoming?: { fileName: string; contentType: string; contentBase64: string }[],
+) {
+  return (incoming ?? []).map((a) => {
+    const content = decodeAttachmentBase64(a.contentBase64);
+    assertAttachmentSize(content);
+    return { fileName: a.fileName.trim() || "attachment", contentType: a.contentType.trim() || "application/octet-stream", content };
+  });
 }
 
 export interface SendPayload {
@@ -95,11 +98,9 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
   if (request.bodyHtml.length > config.limits.maxHtmlBodyLength) {
     throw bad(Codes.SENT_EMAIL, Msg.EMAIL_BODY_TOO_LONG, config.limits.maxHtmlBodyLength);
   }
-  if ((request.attachments?.length ?? 0) > config.limits.maxAttachments) {
-    throw bad(Codes.SENT_EMAIL, Msg.EMAIL_ATTACHMENT_LIMIT, config.limits.maxAttachments);
-  }
 
   let campaignId = request.campaignId ?? undefined;
+  let campaignTemplateId: number | null = null;
   if (campaignId) {
     const campaign = await prisma.emailCampaign.findUnique({ where: { id: campaignId } });
     if (!campaign) {
@@ -108,6 +109,8 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
       } else {
         throw notFound(Codes.EMAIL_CAMPAIGN, Msg.NOT_FOUND, Msg.ENTITY_EMAIL_CAMPAIGN);
       }
+    } else {
+      campaignTemplateId = campaign.templateId;
     }
   }
 
@@ -120,13 +123,13 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
   const from =
     request.fromOverride ?? (await resolveFromAddress(request.senderIdentityId ?? null));
 
-  const attachments = (request.attachments ?? []).map((a) => {
-    const content = decodeAttachment(a.contentBase64);
-    if (content.length > config.limits.maxAttachmentBytes) {
-      throw bad(Codes.SENT_EMAIL, Msg.EMAIL_ATTACHMENT_TOO_LARGE, config.limits.maxAttachmentBytes);
-    }
-    return { fileName: a.fileName.trim(), contentType: a.contentType.trim(), content };
-  });
+  const extraAttachments = decodeRequestAttachments(request.attachments);
+  const templateAttachments =
+    !request.resendOfEmailId && campaignTemplateId
+      ? await loadTemplateAttachmentFiles(campaignTemplateId)
+      : [];
+  const attachments = [...templateAttachments, ...extraAttachments];
+  assertAttachmentCount(attachments.length);
 
   const email = await prisma.sentEmail.create({
     data: {
@@ -173,7 +176,13 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
         ],
       },
       attachments: attachments.length
-        ? { create: attachments.map((a) => ({ fileName: a.fileName, contentType: a.contentType, content: a.content })) }
+        ? {
+            create: attachments.map((a) => ({
+              fileName: a.fileName,
+              contentType: a.contentType,
+              content: new Uint8Array(a.content),
+            })),
+          }
         : undefined,
     },
   });
@@ -455,6 +464,10 @@ function rate(num: number, den: number) {
   return den === 0 ? 0 : num / den;
 }
 
+export function uniqueRecipientCount(recipients: { email: string }[]): number {
+  return new Set(recipients.map((r) => normalizeEmail(r.email)).filter(Boolean)).size;
+}
+
 export async function getAnalytics(fromRaw?: string, toRaw?: string, campaignId?: number) {
   let from = fromRaw ? new Date(fromRaw) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   let to = toRaw ? new Date(toRaw) : new Date();
@@ -481,7 +494,7 @@ export async function getAnalytics(fromRaw?: string, toRaw?: string, campaignId?
 
   const summary = {
     emailsSent,
-    recipientsTotal: recipients.length,
+    recipientsTotal: uniqueRecipientCount(recipients),
     delivered,
     opened,
     failed,
@@ -502,7 +515,7 @@ export async function getAnalytics(fromRaw?: string, toRaw?: string, campaignId?
     byCampaign.push({
       campaignId: campaign.id,
       campaignName: campaign.name,
-      recipientsTotal: subset.length,
+      recipientsTotal: uniqueRecipientCount(subset),
       delivered: d,
       opened: o,
       deliveryRate: rate(d, d + f),

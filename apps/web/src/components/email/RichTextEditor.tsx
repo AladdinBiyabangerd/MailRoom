@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -48,9 +56,16 @@ import {
 } from "lucide-react";
 import { FontSize } from "@/lib/tiptap-font-size";
 import { altFromFileName, EDITOR_IMAGE_ACCEPT, fileToEditorImageSrc } from "@/lib/editor-image";
-import { asFullHtmlDocument, isFullHtmlDocument, looksLikeHtmlSource, shouldUseDocumentEditor } from "@/lib/html-source";
+import {
+  asFullHtmlDocument,
+  collapseEmbeddedImages,
+  expandEmbeddedImages,
+  isFullHtmlDocument,
+  looksLikeHtmlSource,
+  shouldUseDocumentEditor,
+} from "@/lib/html-source";
 import { toast } from "sonner";
-import { FullHtmlCanvas } from "@/components/email/FullHtmlCanvas";
+import { FullHtmlCanvas, type FullHtmlCanvasHandle } from "@/components/email/FullHtmlCanvas";
 import { EmailPreviewFrame } from "@/components/email/EmailPreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -552,23 +567,40 @@ export interface RichTextEditorProps {
   minHeight?: number;
   /** Always use Preview / Edit / HTML — templates must keep image drag after save. */
   layout?: "auto" | "document";
+  /** Hide the in-canvas image button when the host renders it elsewhere. */
+  hideDocumentImageBar?: boolean;
 }
+
+export type RichTextEditorHandle = {
+  insertImages: (files: File[]) => void;
+};
 
 type EditorMode = "visual" | "html" | "preview";
 
-export function RichTextEditor({
-  value,
-  onChange,
-  placeholder,
-  minHeight = 420,
-  layout = "auto",
-}: RichTextEditorProps) {
+export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorProps>(function RichTextEditor(
+  { value, onChange, placeholder, minHeight = 420, layout = "auto", hideDocumentImageBar = false },
+  ref,
+) {
   const { t } = useTranslation();
   const editorRef = useRef<Editor | null>(null);
+  const canvasRef = useRef<FullHtmlCanvasHandle>(null);
+  const pendingImages = useRef<File[] | null>(null);
   const [mode, setMode] = useState<EditorMode>("visual");
+  const [htmlDraft, setHtmlDraft] = useState("");
+  const embeddedImageMapRef = useRef(new Map<string, string>());
   const useDocumentEditor = layout === "document" || shouldUseDocumentEditor(value);
   const documentEditorRef = useRef(useDocumentEditor);
   documentEditorRef.current = useDocumentEditor;
+
+  const commitHtmlDraft = useCallback(
+    (draft: string) => {
+      const { collapsed, map } = collapseEmbeddedImages(draft, embeddedImageMapRef.current);
+      embeddedImageMapRef.current = map;
+      setHtmlDraft(collapsed);
+      onChange(expandEmbeddedImages(collapsed, map));
+    },
+    [onChange],
+  );
 
   const applyHtmlSource = useCallback(
     (html: string) => {
@@ -669,11 +701,37 @@ export function RichTextEditor({
 
   const switchMode = (next: EditorMode) => {
     if (next === mode) return;
+    if (next === "html") {
+      const { collapsed, map } = collapseEmbeddedImages(value, embeddedImageMapRef.current);
+      embeddedImageMapRef.current = map;
+      setHtmlDraft(collapsed);
+    } else if (mode === "html") {
+      commitHtmlDraft(htmlDraft);
+    }
     if (next === "visual" && !documentEditorRef.current && editor) {
       editor.commands.setContent(value || "", { emitUpdate: false });
     }
     setMode(next);
   };
+
+  useImperativeHandle(ref, () => ({
+    insertImages: (files: File[]) => {
+      if (!documentEditorRef.current || !files.length) return;
+      if (mode !== "visual" || !canvasRef.current) {
+        pendingImages.current = files;
+        if (mode !== "visual") switchMode("visual");
+        return;
+      }
+      canvasRef.current.insertImages(files);
+    },
+  }));
+
+  useEffect(() => {
+    if (!pendingImages.current || mode !== "visual") return;
+    const files = pendingImages.current;
+    pendingImages.current = null;
+    canvasRef.current?.insertImages(files);
+  }, [mode]);
 
   if (!editor) return null;
 
@@ -718,7 +776,13 @@ export function RichTextEditor({
           />
         </div>
       ) : useDocumentEditor && mode === "visual" ? (
-        <FullHtmlCanvas html={canvasHtml} onChange={onChange} minHeight={minHeight} />
+        <FullHtmlCanvas
+          ref={canvasRef}
+          html={canvasHtml}
+          onChange={onChange}
+          minHeight={minHeight}
+          showImageBar={!hideDocumentImageBar}
+        />
       ) : mode === "visual" ? (
         <>
           <EditorToolbar editor={editor} />
@@ -727,8 +791,8 @@ export function RichTextEditor({
       ) : (
         <div className="space-y-2 p-2">
           <Textarea
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
+            value={htmlDraft}
+            onChange={(event) => commitHtmlDraft(event.target.value)}
             placeholder={placeholder ?? t("emails.editor.htmlPlaceholder")}
             className="min-h-[240px] font-mono text-xs leading-5"
             style={{ minHeight }}
@@ -741,4 +805,4 @@ export function RichTextEditor({
       )}
     </div>
   );
-}
+});

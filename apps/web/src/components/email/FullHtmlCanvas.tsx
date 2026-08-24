@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ImageIcon, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { altFromFileName, EDITOR_IMAGE_ACCEPT, fileToEditorImageSrc } from "@/lib/editor-image";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 function serializeDocument(doc: Document): string {
   const clone = doc.documentElement.cloneNode(true) as HTMLElement;
@@ -83,20 +84,25 @@ function isFileDrag(event: DragEvent): boolean {
   return Array.from(event.dataTransfer?.types ?? []).includes("Files");
 }
 
-export function FullHtmlCanvas({
-  html,
-  onChange,
-  minHeight,
-}: {
-  html: string;
-  onChange: (html: string) => void;
-  minHeight: number;
-}) {
+export type FullHtmlCanvasHandle = {
+  insertImages: (files: File[]) => void;
+};
+
+export const FullHtmlCanvas = forwardRef<
+  FullHtmlCanvasHandle,
+  {
+    html: string;
+    onChange: (html: string) => void;
+    minHeight: number;
+    showImageBar?: boolean;
+  }
+>(function FullHtmlCanvas({ html, onChange, minHeight, showImageBar = true }, ref) {
   const { t } = useTranslation();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const appliedHtml = useRef<string | null>(null);
   const lastRange = useRef<Range | null>(null);
+  const pendingInsert = useRef<File[] | null>(null);
   const tRef = useRef(t);
   const onChangeRef = useRef(onChange);
   tRef.current = t;
@@ -134,6 +140,21 @@ export function FullHtmlCanvas({
       emit(doc);
     },
     [emit],
+  );
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      insertImages: (files: File[]) => {
+        const doc = iframeRef.current?.contentDocument;
+        if (!doc?.body) {
+          pendingInsert.current = files;
+          return;
+        }
+        void insertFiles(files, lastRange.current);
+      },
+    }),
+    [insertFiles],
   );
 
   useEffect(() => {
@@ -213,6 +234,12 @@ export function FullHtmlCanvas({
       doc.addEventListener("drop", onDrop, true);
       doc.addEventListener("dragover", onDragOver, true);
       doc.addEventListener("paste", onPaste);
+
+      if (pendingInsert.current) {
+        const files = pendingInsert.current;
+        pendingInsert.current = null;
+        void insertFiles(files, lastRange.current);
+      }
     };
 
     iframe.addEventListener("load", bind);
@@ -224,36 +251,40 @@ export function FullHtmlCanvas({
   }, [emit, html, insertFiles]);
 
   return (
-    <div className="space-y-2 p-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={EDITOR_IMAGE_ACCEPT}
-          multiple
-          className="hidden"
-          onChange={(event) => {
-            const files = Array.from(event.target.files ?? []);
-            event.target.value = "";
-            if (!files.length) return;
-            void insertFiles(files, lastRange.current);
-          }}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Upload className="h-3.5 w-3.5" />
-          {t("emails.editor.documentImageAdd")}
-        </Button>
-        <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-          <ImageIcon className="h-3.5 w-3.5 shrink-0" />
-          {t("emails.editor.documentEditHint")}
-        </p>
-      </div>
+    <div className={cn("p-2", showImageBar && "space-y-2")}>
+      {showImageBar ? (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={EDITOR_IMAGE_ACCEPT}
+            multiple
+            className="hidden"
+            onChange={(event) => {
+              const files = Array.from(event.target.files ?? []);
+              event.target.value = "";
+              if (!files.length) return;
+              void insertFiles(files, lastRange.current);
+            }}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {t("emails.editor.documentImageAdd")}
+            </Button>
+            <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <ImageIcon className="h-3.5 w-3.5 shrink-0" />
+              {t("emails.editor.documentEditHint")}
+            </p>
+          </div>
+        </>
+      ) : null}
       <iframe
         ref={iframeRef}
         title="email-html-edit"
@@ -263,4 +294,4 @@ export function FullHtmlCanvas({
       />
     </div>
   );
-}
+});

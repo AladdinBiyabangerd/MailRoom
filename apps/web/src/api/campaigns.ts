@@ -45,6 +45,7 @@ export interface SendCampaignPayload {
   scheduledAt?: string;
   senderIdentityId?: number;
   includeUnsubscribe?: boolean;
+  attachments?: { fileName: string; contentType: string; contentBase64: string }[];
 }
 
 const demoCampaigns: EmailCampaign[] = [

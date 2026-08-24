@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { CalendarClock, Eye, History, Loader2, Paperclip, Send, Trash2, X } from "lucide-react";
+import { CalendarClock, Eye, History, Loader2, Send, Trash2 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/common/PageHeader";
 import { RichTextEditor } from "@/components/email/RichTextEditor";
 import { EmailPreviewDialog } from "@/components/email/EmailPreview";
+import { EmailAttachmentPicker } from "@/components/email/EmailAttachmentPicker";
 import { SenderIdentitySelect } from "@/components/email/SenderIdentitySelect";
 import {
   EmailRecipients,
@@ -26,7 +27,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -42,21 +42,12 @@ import {
   minScheduleDatetimeLocal,
 } from "@/lib/schedule";
 import { htmlHasVisibleContent } from "@/lib/html-source";
+import type { EmailAttachmentItem } from "@/lib/attachments";
 
-const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
-const MAX_ATTACHMENTS = 5;
 const CAMPAIGN_LIST_PARAMS = { page: 1, limit: 100 };
 const DRAFT_SAVE_DELAY_MS = 800;
 
 type SendMode = "now" | "schedule";
-
-interface LocalAttachment {
-  id: string;
-  fileName: string;
-  contentType: string;
-  size: number;
-  contentBase64: string;
-}
 
 function stripHtml(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
@@ -67,38 +58,10 @@ function isBodyEmpty(html: string): boolean {
   return !htmlHasVisibleContent(html);
 }
 
-function readFileAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== "string") {
-        reject(new Error("Invalid file content"));
-        return;
-      }
-      const base64 = result.split(",")[1];
-      if (!base64) {
-        reject(new Error("Invalid file content"));
-        return;
-      }
-      resolve(base64);
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 export default function EmailComposer() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const appliedUrlCampaignId = useRef<number | null>(null);
   const draftReadyRef = useRef(false);
   const skipDraftSaveRef = useRef(false);
@@ -111,7 +74,7 @@ export default function EmailComposer() {
   const [showCc, setShowCc] = useState(false);
   const [showBcc, setShowBcc] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [attachments, setAttachments] = useState<LocalAttachment[]>([]);
+  const [attachments, setAttachments] = useState<EmailAttachmentItem[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>("none");
   const [includeUnsubscribe, setIncludeUnsubscribe] = useState(false);
   const [senderIdentityId, setSenderIdentityId] = useState("");
@@ -352,11 +315,13 @@ export default function EmailComposer() {
       }
     }
 
-    const attachmentPayload: EmailAttachmentPayload[] = attachments.map((a) => ({
-      fileName: a.fileName,
-      contentType: a.contentType,
-      contentBase64: a.contentBase64,
-    }));
+    const attachmentPayload: EmailAttachmentPayload[] = attachments
+      .filter((a) => a.contentBase64)
+      .map((a) => ({
+        fileName: a.fileName,
+        contentType: a.contentType,
+        contentBase64: a.contentBase64!,
+      }));
 
     sendMutation.mutate({
       to: to.map((r) => r.email),
@@ -395,46 +360,6 @@ export default function EmailComposer() {
     } catch {
       // ignore
     }
-  };
-
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files?.length) return;
-
-    if (attachments.length + files.length > MAX_ATTACHMENTS) {
-      toast.error(t("emails.validation.tooManyAttachments", { max: MAX_ATTACHMENTS }));
-      event.target.value = "";
-      return;
-    }
-
-    const next: LocalAttachment[] = [];
-    for (const file of Array.from(files)) {
-      if (file.size > MAX_ATTACHMENT_BYTES) {
-        toast.error(t("emails.validation.attachmentTooLarge", { name: file.name }));
-        continue;
-      }
-      try {
-        const contentBase64 = await readFileAsBase64(file);
-        next.push({
-          id: `${file.name}-${Date.now()}-${Math.random()}`,
-          fileName: file.name,
-          contentType: file.type || "application/octet-stream",
-          size: file.size,
-          contentBase64,
-        });
-      } catch {
-        toast.error(t("emails.validation.attachmentReadFailed", { name: file.name }));
-      }
-    }
-
-    if (next.length) {
-      setAttachments((prev) => [...prev, ...next]);
-    }
-    event.target.value = "";
-  };
-
-  const removeAttachment = (id: string) => {
-    setAttachments((prev) => prev.filter((a) => a.id !== id));
   };
 
   const formatRecipientList = (recipients: RecipientChip[]) =>
@@ -676,52 +601,7 @@ export default function EmailComposer() {
 
           <div className="space-y-2">
             <Label>{t("emails.attachments")}</Label>
-            <div className="rounded-md border border-dashed bg-muted/20 p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={attachments.length >= MAX_ATTACHMENTS}
-                >
-                  <Paperclip className="h-3.5 w-3.5" />
-                  {t("emails.addAttachment")}
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  {t("emails.attachmentsHint", { max: MAX_ATTACHMENTS })}
-                </span>
-              </div>
-
-              {attachments.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {attachments.map((attachment) => (
-                    <Badge key={attachment.id} variant="secondary" className="gap-1 pr-1">
-                      <Paperclip className="h-3 w-3" />
-                      <span className="max-w-[180px] truncate text-xs">
-                        {attachment.fileName} ({formatFileSize(attachment.size)})
-                      </span>
-                      <button
-                        type="button"
-                        className="rounded-sm p-0.5 hover:bg-muted"
-                        onClick={() => removeAttachment(attachment.id)}
-                        aria-label={t("emails.removeAttachment")}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
+            <EmailAttachmentPicker items={attachments} onChange={setAttachments} />
           </div>
         </CardContent>
       </Card>
