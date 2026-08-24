@@ -380,6 +380,22 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   cursor: pointer;
 }
 
+.tiptap-editor-content .mailroom-salam-placeholder {
+  display: inline-block;
+  margin: 0 0.15em;
+  padding: 0.1em 0.45em;
+  border-radius: 0.35rem;
+  border: 1px dashed var(--border);
+  background: var(--muted);
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+  font-weight: 600;
+  line-height: 1.4;
+  vertical-align: baseline;
+  user-select: all;
+}
+
 .tiptap-editor-content img {
   max-width: 100%;
   height: auto;

@@ -56,6 +56,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { FontSize } from "@/lib/tiptap-font-size";
+import { SalamPlaceholder } from "@/lib/tiptap-salam-placeholder";
 import { altFromFileName, EDITOR_IMAGE_ACCEPT, fileToEditorImageSrc } from "@/lib/editor-image";
 import { SALAM_PLACEHOLDER } from "@/lib/emailGreeting";
 import {
@@ -660,6 +661,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       Placeholder.configure({
         placeholder: placeholder ?? t("emails.editor.placeholder"),
       }),
+      SalamPlaceholder,
     ],
     content: useDocumentEditor ? "" : value,
     onUpdate: ({ editor: ed }) => {
@@ -741,7 +743,8 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       commitHtmlDraft(next);
       return;
     }
-    editor?.chain().focus().insertContent(SALAM_PLACEHOLDER).run();
+    // TipTap string insertContent() HTML-parses "{{salam}}" and can corrupt it.
+    editor?.chain().focus().insertSalamPlaceholder().run();
   }, [commitHtmlDraft, editor, htmlDraft, mode, useDocumentEditor]);
 
   useImperativeHandle(ref, () => ({

@@ -47,8 +47,14 @@ export function buildGreetingHtml(name: string | null | undefined): string {
   return `<b style="font-weight:700;font-family:Arial,Helvetica,sans-serif;">${text}</b>`;
 }
 
+const SALAM_SPAN_RE = /<span\b[^>]*\bdata-mailroom-salam\b[^>]*>\s*\{\{salam\}\}\s*<\/span>/gi;
+
+function replaceSalamTokens(html: string, replacement: string): string {
+  return html.replace(SALAM_SPAN_RE, replacement).split(SALAM_PLACEHOLDER).join(replacement);
+}
+
 /**
- * Replace user-placed {{salam}} tokens. When greeting is off, remove the tokens.
+ * Replace user-placed {{salam}} tokens (plain or editor span). When greeting is off, remove the tokens.
  * Placement is entirely controlled by where the user put the placeholder.
  */
 export function applyPersonalizedGreeting(
@@ -56,11 +62,14 @@ export function applyPersonalizedGreeting(
   name: string | null | undefined,
   enabled = true,
 ): string {
-  if (!htmlBody || !htmlBody.includes(SALAM_PLACEHOLDER)) return htmlBody;
+  if (!htmlBody) return htmlBody;
+  const hasToken =
+    htmlBody.includes(SALAM_PLACEHOLDER) || /data-mailroom-salam/i.test(htmlBody);
+  if (!hasToken) return htmlBody;
   if (!enabled) {
-    return htmlBody.split(SALAM_PLACEHOLDER).join("");
+    return replaceSalamTokens(htmlBody, "");
   }
-  return htmlBody.split(SALAM_PLACEHOLDER).join(buildGreetingHtml(name));
+  return replaceSalamTokens(htmlBody, buildGreetingHtml(name));
 }
 
 /** @deprecated Use applyPersonalizedGreeting — kept for older call sites during transition. */

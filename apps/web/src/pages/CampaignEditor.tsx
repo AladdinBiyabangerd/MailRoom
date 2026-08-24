@@ -3,11 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, Save, Send, Trash2 } from "lucide-react";
-import { EmailPreviewButton, EmailPreviewDialog } from "@/components/email/EmailPreview";
+import { ArrowLeft, ExternalLink, FilePlus2, Loader2, Save, Send, Trash2 } from "lucide-react";
+import { EmailPreviewButton, EmailPreviewDialog, EmailPreviewFrame } from "@/components/email/EmailPreview";
 import { EmailAttachmentPicker } from "@/components/email/EmailAttachmentPicker";
 import { PageHeader } from "@/components/common/PageHeader";
-import { RichTextEditor } from "@/components/email/RichTextEditor";
 import { BulkEmailPasteButton } from "@/components/email/BulkEmailPasteDialog";
 import { SavedContactPickerButton } from "@/components/email/SavedContactPicker";
 import { PermissionGate } from "@/components/auth/PermissionGate";
@@ -54,7 +53,6 @@ import {
 import {
   fetchEmailTemplateRequest,
   fetchEmailTemplatesRequest,
-  updateEmailTemplateRequest,
 } from "@/api/email-templates";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { queryKeys } from "@/lib/query-keys";
@@ -200,11 +198,6 @@ export default function CampaignEditor() {
   );
 
   const handleTemplateChange = async (value: string) => {
-    if (value === "none") {
-      setDraft({ ...draft, templateId: null });
-      return;
-    }
-
     const templateId = Number(value);
     if (!Number.isFinite(templateId)) return;
 
@@ -226,27 +219,21 @@ export default function CampaignEditor() {
       toast.error(t("campaigns.nameRequired"));
       return;
     }
+    if (!draft.templateId) {
+      toast.error(t("campaigns.templateRequired"));
+      return;
+    }
 
     setSaving(true);
     try {
-      if (draft.templateId) {
-        const template = await fetchEmailTemplateRequest(draft.templateId);
-        await updateEmailTemplateRequest(draft.templateId, {
-          name: template.name,
-          description: template.description,
-          subject: draft.defaultSubject?.trim() || undefined,
-          htmlBody: draft.defaultHtmlBody?.trim() || undefined,
-        });
-      }
-
       const payload: UpsertEmailCampaignPayload = {
         ...draft,
         name: draft.name.trim(),
         description: draft.description?.trim() || undefined,
-        // When linked, content lives on the template — don't keep a stale campaign copy.
-        defaultSubject: draft.templateId ? undefined : draft.defaultSubject?.trim() || undefined,
-        defaultHtmlBody: draft.templateId ? undefined : draft.defaultHtmlBody?.trim() || undefined,
-        templateId: draft.templateId ?? null,
+        // Content lives on the template — don't store a campaign copy.
+        defaultSubject: undefined,
+        defaultHtmlBody: undefined,
+        templateId: draft.templateId,
       };
 
       if (isNew) {
@@ -410,42 +397,76 @@ export default function CampaignEditor() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="campaign-subject">{t("campaigns.defaultSubject")}</Label>
-                <Input
-                  id="campaign-subject"
-                  value={draft.defaultSubject ?? ""}
-                  onChange={(e) => setDraft({ ...draft, defaultSubject: e.target.value })}
-                  placeholder={t("campaigns.defaultSubjectPlaceholder")}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="campaign-template">{t("campaigns.template")}</Label>
-                <Select
-                  value={draft.templateId ? String(draft.templateId) : "none"}
-                  onValueChange={handleTemplateChange}
-                >
-                  <SelectTrigger id="campaign-template">
-                    <SelectValue placeholder={t("campaigns.templatePlaceholder")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">{t("campaigns.noTemplate")}</SelectItem>
-                    {templates.map((template) => (
-                      <SelectItem key={template.id} value={String(template.id)}>
-                        {template.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">{t("campaigns.templateHint")}</p>
-                {templateAttachments.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {t("campaigns.templateAttachmentsHint", {
-                      files: templateAttachments.map((a) => a.fileName).join(", "),
-                    })}
-                  </p>
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="campaign-template">{t("campaigns.template")}</Label>
+                  <PermissionGate permission="emails:write">
+                    <Button type="button" variant="link" size="sm" className="h-auto gap-1 px-0 text-xs" asChild>
+                      <Link to="/emails/templates/new">
+                        <FilePlus2 className="h-3.5 w-3.5" />
+                        {t("campaigns.createTemplate")}
+                      </Link>
+                    </Button>
+                  </PermissionGate>
+                </div>
+                {templates.length === 0 ? (
+                  <div className="space-y-3 rounded-lg border border-dashed bg-muted/20 p-4">
+                    <p className="text-sm text-muted-foreground">{t("campaigns.noTemplatesYet")}</p>
+                    <PermissionGate permission="emails:write">
+                      <Button type="button" size="sm" className="gap-1.5" asChild>
+                        <Link to="/emails/templates/new">
+                          <FilePlus2 className="h-4 w-4" />
+                          {t("campaigns.createTemplate")}
+                        </Link>
+                      </Button>
+                    </PermissionGate>
+                  </div>
+                ) : (
+                  <>
+                    <Select
+                      value={draft.templateId ? String(draft.templateId) : undefined}
+                      onValueChange={handleTemplateChange}
+                    >
+                      <SelectTrigger id="campaign-template">
+                        <SelectValue placeholder={t("campaigns.templatePlaceholder")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templates.map((template) => (
+                          <SelectItem key={template.id} value={String(template.id)}>
+                            {template.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">{t("campaigns.templateHint")}</p>
+                    {draft.templateId && (
+                      <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 text-xs" asChild>
+                        <Link to={`/emails/templates/${draft.templateId}/edit`}>
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          {t("campaigns.editTemplate")}
+                        </Link>
+                      </Button>
+                    )}
+                    {templateAttachments.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {t("campaigns.templateAttachmentsHint", {
+                          files: templateAttachments.map((a) => a.fileName).join(", "),
+                        })}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
+
+              {draft.templateId && (
+                <div className="space-y-2">
+                  <Label>{t("campaigns.defaultSubject")}</Label>
+                  <p className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                    {draft.defaultSubject?.trim() || (
+                      <span className="text-muted-foreground">{t("campaigns.templateSubjectEmpty")}</span>
+                    )}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -541,20 +562,35 @@ export default function CampaignEditor() {
 
         <Card className="shadow-card xl:min-h-[calc(100vh-12rem)]">
           <CardHeader className="pb-4">
-            <CardTitle className="text-base">{t("campaigns.defaultBody")}</CardTitle>
+            <CardTitle className="text-base">{t("campaigns.templatePreview")}</CardTitle>
             <CardDescription>
               {draft.templateId
-                ? t("campaigns.defaultBodyTemplateHint")
-                : t("campaigns.defaultBodySectionHint")}
+                ? t("campaigns.templatePreviewHint")
+                : t("campaigns.templatePreviewEmptyHint")}
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <RichTextEditor
-              value={draft.defaultHtmlBody ?? ""}
-              onChange={(html) => setDraft({ ...draft, defaultHtmlBody: html })}
-              placeholder={t("campaigns.defaultBodyPlaceholder")}
-              minHeight={560}
-            />
+            {draft.templateId && draft.defaultHtmlBody?.trim() ? (
+              <EmailPreviewFrame
+                html={draft.defaultHtmlBody}
+                emptyLabel={t("emails.emptyBody")}
+                heightClassName="min-h-[560px] h-[min(70vh,720px)]"
+              />
+            ) : (
+              <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-muted/10 px-6 text-center">
+                <p className="max-w-sm text-sm text-muted-foreground">
+                  {t("campaigns.templatePreviewEmptyHint")}
+                </p>
+                <PermissionGate permission="emails:write">
+                  <Button type="button" size="sm" className="gap-1.5" asChild>
+                    <Link to="/emails/templates/new">
+                      <FilePlus2 className="h-4 w-4" />
+                      {t("campaigns.createTemplate")}
+                    </Link>
+                  </Button>
+                </PermissionGate>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
