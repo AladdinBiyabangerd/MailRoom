@@ -13,6 +13,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -27,10 +34,11 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { BulkEmailPasteButton } from "@/components/email/BulkEmailPasteDialog";
-import { SavedContactPicker } from "@/components/email/SavedContactPicker";
+import { SavedContactPickerButton } from "@/components/email/SavedContactPicker";
 import { queryKeys } from "@/lib/query-keys";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_VISIBLE_CHIPS = 4;
 
 export interface RecipientChip {
   email: string;
@@ -45,6 +53,10 @@ interface EmailRecipientsProps {
   showSavedContacts?: boolean;
 }
 
+function formatChip(recipient: RecipientChip) {
+  return recipient.label ? `${recipient.label} <${recipient.email}>` : recipient.email;
+}
+
 export function EmailRecipients({
   value,
   onChange,
@@ -54,6 +66,7 @@ export function EmailRecipients({
 }: EmailRecipientsProps) {
   const { t } = useTranslation();
   const [systemUsersOpen, setSystemUsersOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [tenantFilter, setTenantFilter] = useState<string>("all");
   const [customEmail, setCustomEmail] = useState("");
@@ -87,6 +100,9 @@ export function EmailRecipients({
     () => new Set(value.map((r) => r.email.toLowerCase())),
     [value],
   );
+
+  const visibleRecipients = value.slice(0, MAX_VISIBLE_CHIPS);
+  const hiddenCount = Math.max(0, value.length - MAX_VISIBLE_CHIPS);
 
   const addRecipient = (email: string, chipLabel?: string) => {
     const normalized = email.trim().toLowerCase();
@@ -161,11 +177,9 @@ export function EmailRecipients({
           "flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1.5 shadow-sm",
         )}
       >
-        {value.map((recipient) => (
+        {visibleRecipients.map((recipient) => (
           <Badge key={recipient.email} variant="secondary" className="gap-1 pr-1">
-            <span className="max-w-[200px] truncate text-xs">
-              {recipient.label ? `${recipient.label} <${recipient.email}>` : recipient.email}
-            </span>
+            <span className="max-w-[200px] truncate text-xs">{formatChip(recipient)}</span>
             <button
               type="button"
               className="rounded-sm p-0.5 hover:bg-muted"
@@ -176,18 +190,21 @@ export function EmailRecipients({
             </button>
           </Badge>
         ))}
+        {hiddenCount > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={() => setMoreOpen(true)}
+          >
+            {t("emails.recipients.moreCount", { count: hiddenCount })}
+          </Button>
+        )}
         {value.length === 0 && (
           <span className="px-1 text-xs text-muted-foreground">{t("emails.recipients.empty")}</span>
         )}
       </div>
-
-      {showSavedContacts && (
-        <SavedContactPicker
-          selectedEmails={selectedEmails}
-          onAdd={(contact) => importRecipients([contact])}
-          onAddMany={importRecipients}
-        />
-      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <BulkEmailPasteButton
@@ -197,6 +214,17 @@ export function EmailRecipients({
           size="sm"
           className="h-8 gap-1 px-2 text-xs"
         />
+
+        {showSavedContacts && (
+          <SavedContactPickerButton
+            selectedEmails={selectedEmails}
+            onAdd={(contact) => importRecipients([contact])}
+            onAddMany={importRecipients}
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1 px-2 text-xs"
+          />
+        )}
 
         <Popover open={systemUsersOpen} onOpenChange={setSystemUsersOpen}>
           <PopoverTrigger asChild>
@@ -300,6 +328,48 @@ export function EmailRecipients({
           </PopoverContent>
         </Popover>
       </div>
+
+      <Dialog open={moreOpen} onOpenChange={setMoreOpen}>
+        <DialogContent className="flex max-h-[min(92vh,640px)] max-w-md flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="shrink-0 space-y-1 border-b px-6 py-4 pr-12">
+            <DialogTitle>
+              {t("emails.recipients.allTitle", { count: value.length })}
+            </DialogTitle>
+            <DialogDescription>{t("emails.recipients.allHint")}</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[min(60vh,480px)]">
+            <div className="space-y-1 p-4">
+              {value.map((recipient) => (
+                <div
+                  key={recipient.email}
+                  className="flex items-center gap-2 rounded-md border px-3 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    {recipient.label ? (
+                      <>
+                        <p className="truncate text-sm font-medium">{recipient.label}</p>
+                        <p className="truncate text-xs text-muted-foreground">{recipient.email}</p>
+                      </>
+                    ) : (
+                      <p className="truncate text-sm">{recipient.email}</p>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 shrink-0 px-2 text-destructive hover:text-destructive"
+                    onClick={() => removeRecipient(recipient.email)}
+                    aria-label={t("emails.recipients.remove")}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

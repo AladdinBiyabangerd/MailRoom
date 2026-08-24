@@ -491,19 +491,32 @@ export default function EmailComposer() {
             showSavedContacts
           />
 
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Switch id="show-cc" checked={showCc} onCheckedChange={setShowCc} />
-              <Label htmlFor="show-cc" className="text-sm font-normal">
-                {t("emails.showCc")}
-              </Label>
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Switch id="show-cc" checked={showCc} onCheckedChange={setShowCc} />
+                <Label htmlFor="show-cc" className="text-sm font-normal">
+                  {t("emails.showCc")}
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch id="show-bcc" checked={showBcc} onCheckedChange={setShowBcc} />
+                <Label htmlFor="show-bcc" className="text-sm font-normal">
+                  {t("emails.showBcc")}
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="greet-with-name"
+                  checked={greetWithName}
+                  onCheckedChange={setGreetWithName}
+                />
+                <Label htmlFor="greet-with-name" className="text-sm font-normal">
+                  {t("emails.greetWithName")}
+                </Label>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch id="show-bcc" checked={showBcc} onCheckedChange={setShowBcc} />
-              <Label htmlFor="show-bcc" className="text-sm font-normal">
-                {t("emails.showBcc")}
-              </Label>
-            </div>
+            <p className="text-xs text-muted-foreground">{t("emails.greetWithNameHint")}</p>
           </div>
 
           {showCc && (
@@ -563,17 +576,6 @@ export default function EmailComposer() {
           </div>
 
           <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
-            <div className="flex items-center gap-2">
-              <Switch
-                id="greet-with-name"
-                checked={greetWithName}
-                onCheckedChange={setGreetWithName}
-              />
-              <Label htmlFor="greet-with-name" className="font-normal">
-                {t("emails.greetWithName")}
-              </Label>
-            </div>
-            <p className="text-xs text-muted-foreground">{t("emails.greetWithNameHint")}</p>
             <div className="flex items-center gap-2">
               <Switch
                 id="include-unsubscribe"

@@ -9,7 +9,7 @@ import { EmailAttachmentPicker } from "@/components/email/EmailAttachmentPicker"
 import { PageHeader } from "@/components/common/PageHeader";
 import { RichTextEditor } from "@/components/email/RichTextEditor";
 import { BulkEmailPasteButton } from "@/components/email/BulkEmailPasteDialog";
-import { SavedContactPicker } from "@/components/email/SavedContactPicker";
+import { SavedContactPickerButton } from "@/components/email/SavedContactPicker";
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { SenderIdentitySelect } from "@/components/email/SenderIdentitySelect";
 import { Button } from "@/components/ui/button";
@@ -455,10 +455,11 @@ export default function CampaignEditor() {
 
               <Separator />
 
-              <SavedContactPicker
+              <SavedContactPickerButton
                 selectedEmails={selectedContactEmails}
                 onAdd={(contact) => importContacts([contact])}
                 onAddMany={importContacts}
+                className="h-8 gap-1 px-2 text-xs"
               />
 
               <Separator />
