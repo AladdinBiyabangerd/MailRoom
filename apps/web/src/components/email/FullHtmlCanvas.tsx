@@ -86,6 +86,7 @@ function isFileDrag(event: DragEvent): boolean {
 
 export type FullHtmlCanvasHandle = {
   insertImages: (files: File[]) => void;
+  insertText: (text: string) => void;
 };
 
 export const FullHtmlCanvas = forwardRef<
@@ -153,8 +154,32 @@ export const FullHtmlCanvas = forwardRef<
         }
         void insertFiles(files, lastRange.current);
       },
+      insertText: (text: string) => {
+        const doc = iframeRef.current?.contentDocument;
+        if (!doc?.body || !text) return;
+        const selection = doc.getSelection();
+        let range = lastRange.current;
+        if (selection && selection.rangeCount > 0) {
+          range = selection.getRangeAt(0).cloneRange();
+        }
+        if (!range) {
+          range = doc.createRange();
+          range.selectNodeContents(doc.body);
+          range.collapse(true);
+        }
+        range.deleteContents();
+        const node = doc.createTextNode(text);
+        range.insertNode(node);
+        const after = doc.createRange();
+        after.setStartAfter(node);
+        after.collapse(true);
+        selection?.removeAllRanges();
+        selection?.addRange(after);
+        lastRange.current = after.cloneRange();
+        emit(doc);
+      },
     }),
-    [insertFiles],
+    [emit, insertFiles],
   );
 
   useEffect(() => {

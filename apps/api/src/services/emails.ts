@@ -7,7 +7,7 @@ import {
   formatFromLabel,
   resolveGreetingName,
   unsubscribeUrl,
-  withPersonalizedGreeting,
+  applyPersonalizedGreeting,
   withTrackingPixel,
   withUnsubscribeFooter,
 } from "../mail/html.js";
@@ -60,6 +60,7 @@ export interface SendPayload {
   senderIdentityId?: number;
   includeUnsubscribe?: boolean;
   greetWithName?: boolean;
+  greetInsideHtml?: boolean;
   resendOfEmailId?: number;
   fromOverride?: { email: string; displayName?: string | null };
   recipientNames?: Record<string, string | null>;
@@ -129,6 +130,7 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
   const includeUnsubscribe =
     request.includeUnsubscribe === true || (request.includeUnsubscribe == null && campaignId != null);
   const greetWithName = request.greetWithName !== false;
+  const greetInsideHtml = request.greetInsideHtml !== false;
   const from =
     request.fromOverride ?? (await resolveFromAddress(request.senderIdentityId ?? null));
 
@@ -157,6 +159,7 @@ export async function sendAdminEmail(actor: AuthUser, request: SendPayload) {
       resendOfEmailId: request.resendOfEmailId ?? null,
       includeUnsubscribe,
       greetWithName,
+      greetInsideHtml,
       recipients: {
         create: [
           ...to.map((e) => ({
@@ -245,10 +248,13 @@ export async function dispatchEmail(sentEmailId: number) {
 
     let htmlBody = email.bodyHtml;
     if (email.greetWithName) {
-      htmlBody = withPersonalizedGreeting(
+      htmlBody = applyPersonalizedGreeting(
         htmlBody,
         resolveGreetingName(recipient.name, recipient.email),
+        true,
       );
+    } else {
+      htmlBody = applyPersonalizedGreeting(htmlBody, null, false);
     }
     if (email.includeUnsubscribe && recipient.unsubscribeToken) {
       htmlBody = withUnsubscribeFooter(htmlBody, recipient.unsubscribeToken, config.publicBaseUrl);
@@ -451,6 +457,7 @@ export async function resendEmail(id: number, actor: AuthUser, modeRaw?: string)
     resendOfEmailId: original.id,
     includeUnsubscribe: original.includeUnsubscribe,
     greetWithName: original.greetWithName,
+    greetInsideHtml: original.greetInsideHtml,
     senderIdentityId,
     fromOverride: original.fromEmail
       ? { email: original.fromEmail, displayName: original.fromName }

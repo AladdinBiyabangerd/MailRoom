@@ -1,3 +1,6 @@
+/** Merge tag the user places in the email body where the greeting should appear. */
+export const SALAM_PLACEHOLDER = "{{salam}}";
+
 /** Resolve a display name suitable for "Salam {name}," — ignore blank or email-as-label. */
 export function resolveGreetingName(
   name: string | null | undefined,
@@ -18,22 +21,30 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-/** Prepend personalized Salam greeting — mirrors API mail/html.ts. */
-export function withPersonalizedGreeting(
+/** Same bold greeting markup everywhere (composer preview + outbound mail). */
+export function buildGreetingHtml(name: string | null | undefined): string {
+  const text = name?.trim() ? `Salam ${escapeHtml(name.trim())},` : "Salam,";
+  return `<b style="font-weight:700;font-family:Arial,Helvetica,sans-serif;">${text}</b>`;
+}
+
+/**
+ * Replace user-placed {{salam}} tokens. When greeting is off, remove the tokens
+ * so raw placeholders never reach the inbox.
+ */
+export function applyPersonalizedGreeting(
   htmlBody: string,
   name: string | null | undefined,
+  enabled = true,
 ): string {
-  if (!htmlBody) return htmlBody;
-  const greeting = name?.trim()
-    ? `<p>Salam ${escapeHtml(name.trim())},</p>`
-    : `<p>Salam,</p>`;
-
-  const bodyOpen = htmlBody.match(/<body\b[^>]*>/i);
-  if (bodyOpen && bodyOpen.index != null) {
-    const insertAt = bodyOpen.index + bodyOpen[0].length;
-    return htmlBody.slice(0, insertAt) + greeting + htmlBody.slice(insertAt);
+  if (!htmlBody || !htmlBody.includes(SALAM_PLACEHOLDER)) return htmlBody;
+  if (!enabled) {
+    return htmlBody.split(SALAM_PLACEHOLDER).join("");
   }
-  return greeting + htmlBody;
+  return htmlBody.split(SALAM_PLACEHOLDER).join(buildGreetingHtml(name));
+}
+
+export function bodyHasSalamPlaceholder(htmlBody: string): boolean {
+  return htmlBody.includes(SALAM_PLACEHOLDER);
 }
 
 export function buildRecipientNames(

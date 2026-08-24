@@ -1,37 +1,44 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  applyPersonalizedGreeting,
+  buildGreetingHtml,
   embedInlineImages,
   resolveGreetingName,
-  withPersonalizedGreeting,
+  SALAM_PLACEHOLDER,
 } from "./html.js";
 
 const PIXEL_B64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
-describe("withPersonalizedGreeting", () => {
-  it("prepends Salam with name for fragment html", () => {
-    const result = withPersonalizedGreeting("<p>Body</p>", "Aladdin Alizade");
-    assert.equal(result, "<p>Salam Aladdin Alizade,</p><p>Body</p>");
+describe("applyPersonalizedGreeting", () => {
+  it("replaces {{salam}} with bold greeting inside the template", () => {
+    const html = `<html><body><td>Header</td><td>${SALAM_PLACEHOLDER} Hörmətli həmkarlar, mətn.</td></body></html>`;
+    const result = applyPersonalizedGreeting(html, "Ada", true);
+    assert.match(result, /<b style="font-weight:700[^"]*">Salam Ada,<\/b>/);
+    assert.ok(result.includes("Hörmətli həmkarlar"));
+    assert.ok(!result.includes(SALAM_PLACEHOLDER));
+    assert.ok(result.indexOf("Salam Ada") > result.indexOf("Header"));
   });
 
-  it("prepends Salam without name when name is missing", () => {
-    const result = withPersonalizedGreeting("<p>Body</p>", null);
-    assert.equal(result, "<p>Salam,</p><p>Body</p>");
+  it("uses Salam, when name is missing", () => {
+    const result = applyPersonalizedGreeting(`Hi ${SALAM_PLACEHOLDER}`, null, true);
+    assert.equal(result, `Hi ${buildGreetingHtml(null)}`);
   });
 
-  it("inserts after body open tag", () => {
-    const html = "<html><body class=\"x\"><p>Hi</p></body></html>";
-    const result = withPersonalizedGreeting(html, "Ada");
-    assert.equal(result, '<html><body class="x"><p>Salam Ada,</p><p>Hi</p></body></html>');
+  it("removes placeholder when greeting is disabled", () => {
+    const result = applyPersonalizedGreeting(`X ${SALAM_PLACEHOLDER} Y`, "Ada", false);
+    assert.equal(result, "X  Y");
+  });
+
+  it("leaves html unchanged when placeholder is absent", () => {
+    const html = "<p>No token</p>";
+    assert.equal(applyPersonalizedGreeting(html, "Ada", true), html);
   });
 
   it("escapes html in the name", () => {
-    const result = withPersonalizedGreeting("<p>x</p>", `<img src=x onerror=alert(1)>`);
-    assert.equal(
-      result,
-      "<p>Salam &lt;img src=x onerror=alert(1)&gt;,</p><p>x</p>",
-    );
+    const result = applyPersonalizedGreeting(SALAM_PLACEHOLDER, `<img src=x>`, true);
+    assert.match(result, /Salam &lt;img src=x&gt;,/);
   });
 });
 

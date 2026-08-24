@@ -757,7 +757,7 @@
     "includeUnsubscribe": "Abunəlikdən çıxma linki əlavə et",
     "includeUnsubscribeHint": "Footer linki və List-Unsubscribe başlığı əlavə edir. Gmail bunu tez-tez Tanıtımlar və ya Spam qovluğuna atır — şəxsi test üçün söndürün.",
     "greetWithName": "Ad ilə salamla",
-    "greetWithNameHint": "Hər emailin əvvəlinə “Salam {ad},” əlavə edir. Ad yoxdursa yalnız “Salam,” yazılır. Öz salamlamanız varsa söndürün.",
+    "greetWithNameHint": "Editor-də {{salam}} yerləşdirin — göndəriləndə orada qalın “Salam {ad},” yazılacaq. Ad yoxdursa “Salam,”. Öz salamlamanız varsa söndürün.",
     "fromSender": "Kimdən (göndərən)",
     "fromSenderPlaceholder": "Göndərən seçin",
     "fromSenderHint": "Alıcılar inbox-da göndərənin adını belə görür. Ünvanları E-poçt Çatdırılması → Göndərən ünvanlar bölməsində idarə edin.",
@@ -781,6 +781,7 @@
       "noRecipients": "Ən azı bir alıcı əlavə edin",
       "noSubject": "Mövzu mütləqdir",
       "noBody": "Mətn boş ola bilməz",
+      "noSalamPlaceholder": "Ad ilə salamlama açıqdır — mətndə {{token}} yerləşdirin (editor düyməsi ilə).",
       "noScheduleTime": "Göndərmə vaxtını seçin",
       "scheduleInPast": "Planlaşdırılmış vaxt gələcəkdə olmalıdır",
       "tooManyAttachments": "Maksimum {{max}} əlavəyə icazə verilir",
@@ -857,7 +858,10 @@
       "imageReadFailed": "{{name}} oxuna bilmədi",
       "table": "Cədvəl əlavə et",
       "horizontalRule": "Üfüqi xətt",
-      "clearFormatting": "Formatı təmizlə"
+      "clearFormatting": "Formatı təmizlə",
+      "insertSalam": "Salam yeri əlavə et",
+      "insertSalamShort": "{{salam}}",
+      "insertSalamHint": "Kursorun olduğu yerə {{salam}} yazılır — göndəriləndə ad ilə əvəz olunur."
     }
   },
   "emailHistory": {
@@ -966,9 +970,9 @@
     "template": "E-poçt şablonu",
     "templatePlaceholder": "Paylaşılan şablon seçin",
     "noTemplate": "Şablon yoxdur",
-    "templateHint": "Paylaşılan şablon bağlayın və ya aşağıda öz məzmununuzu yazın. Kampaniya sahələri göndərərkən şablonu əvəz edir.",
+    "templateHint": "Şablon ID ilə bağlıdır: burada və ya şablon səhifəsində dəyişiklik hər iki yerdə görünür. Şablon seçməsəniz, məzmun yalnız bu kampaniyada saxlanır.",
     "templateAttachmentsHint": "Şablon faylları da göndəriləcək: {{files}}",
-    "defaultBodyTemplateHint": "Bağlı şablon üçün istəyə görə məzmun override",
+    "defaultBodyTemplateHint": "Bu mətn bağlı şablonla eynidir — saxlayanda şablon da yenilənir.",
     "sendTitle": "Kampaniyanı göndər",
     "sendBody": "\"{{name}}\" kampaniyası {{count}} kontakta kampaniya standartları və ya bağlı şablonla göndərilsin?",
     "sendConfirm": "İndi göndər",

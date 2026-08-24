@@ -39,25 +39,37 @@ export function resolveGreetingName(
   return trimmed;
 }
 
+export const SALAM_PLACEHOLDER = "{{salam}}";
+
+/** Same bold greeting markup everywhere (preview + outbound mail). */
+export function buildGreetingHtml(name: string | null | undefined): string {
+  const text = name?.trim() ? `Salam ${escapeHtml(name.trim())},` : "Salam,";
+  return `<b style="font-weight:700;font-family:Arial,Helvetica,sans-serif;">${text}</b>`;
+}
+
 /**
- * Prepends "Salam {name}," or "Salam," at the start of the email body content.
- * Inserts after an opening &lt;body&gt; tag when present.
+ * Replace user-placed {{salam}} tokens. When greeting is off, remove the tokens.
+ * Placement is entirely controlled by where the user put the placeholder.
  */
+export function applyPersonalizedGreeting(
+  htmlBody: string,
+  name: string | null | undefined,
+  enabled = true,
+): string {
+  if (!htmlBody || !htmlBody.includes(SALAM_PLACEHOLDER)) return htmlBody;
+  if (!enabled) {
+    return htmlBody.split(SALAM_PLACEHOLDER).join("");
+  }
+  return htmlBody.split(SALAM_PLACEHOLDER).join(buildGreetingHtml(name));
+}
+
+/** @deprecated Use applyPersonalizedGreeting — kept for older call sites during transition. */
 export function withPersonalizedGreeting(
   htmlBody: string,
   name: string | null | undefined,
+  _insideHtml = true,
 ): string {
-  if (!htmlBody) return htmlBody;
-  const greeting = name?.trim()
-    ? `<p>Salam ${escapeHtml(name.trim())},</p>`
-    : `<p>Salam,</p>`;
-
-  const bodyOpen = htmlBody.match(/<body\b[^>]*>/i);
-  if (bodyOpen && bodyOpen.index != null) {
-    const insertAt = bodyOpen.index + bodyOpen[0].length;
-    return htmlBody.slice(0, insertAt) + greeting + htmlBody.slice(insertAt);
-  }
-  return greeting + htmlBody;
+  return applyPersonalizedGreeting(htmlBody, name, true);
 }
 
 export function withTrackingPixel(htmlBody: string, trackingToken: string, publicBaseUrl: string): string {

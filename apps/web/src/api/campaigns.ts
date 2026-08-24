@@ -181,16 +181,18 @@ export async function sendCampaignRequest(
 export async function resolveCampaignContent(
   campaign: EmailCampaign,
 ): Promise<{ subject?: string; bodyHtml?: string }> {
-  let subject = campaign.defaultSubject?.trim() || undefined;
-  let bodyHtml = campaign.defaultHtmlBody?.trim() || undefined;
-
-  if ((!subject || !bodyHtml) && campaign.templateId) {
+  if (campaign.templateId) {
     const template = await fetchEmailTemplateRequest(campaign.templateId);
-    subject = subject || template.subject?.trim() || undefined;
-    bodyHtml = bodyHtml || template.htmlBody?.trim() || undefined;
+    return {
+      subject: template.subject?.trim() || undefined,
+      bodyHtml: template.htmlBody?.trim() || undefined,
+    };
   }
 
-  return { subject, bodyHtml };
+  return {
+    subject: campaign.defaultSubject?.trim() || undefined,
+    bodyHtml: campaign.defaultHtmlBody?.trim() || undefined,
+  };
 }
 
 export function campaignToDraft(campaign: EmailCampaign): UpsertEmailCampaignPayload {

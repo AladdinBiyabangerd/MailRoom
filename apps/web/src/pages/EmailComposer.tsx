@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { CalendarClock, Eye, History, Loader2, Send, Trash2 } from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
+import { CalendarClock, Eye, Loader2, Send, Trash2 } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/common/PageHeader";
 import { RichTextEditor } from "@/components/email/RichTextEditor";
 import { EmailPreviewDialog } from "@/components/email/EmailPreview";
@@ -44,9 +44,11 @@ import {
 import { htmlHasVisibleContent } from "@/lib/html-source";
 import type { EmailAttachmentItem } from "@/lib/attachments";
 import {
+  applyPersonalizedGreeting,
+  bodyHasSalamPlaceholder,
   buildRecipientNames,
   resolveGreetingName,
-  withPersonalizedGreeting,
+  SALAM_PLACEHOLDER,
 } from "@/lib/emailGreeting";
 
 const CAMPAIGN_LIST_PARAMS = { page: 1, limit: 100 };
@@ -294,7 +296,7 @@ export default function EmailComposer() {
     onError: (error) => toast.error(getApiErrorMessage(error, t("emails.sendError"))),
   });
 
-  const handleSend = () => {
+  const handleSend = (mode: SendMode = sendMode) => {
     if (to.length === 0) {
       toast.error(t("emails.validation.noRecipients"));
       return;
@@ -307,9 +309,13 @@ export default function EmailComposer() {
       toast.error(t("emails.validation.noBody"));
       return;
     }
+    if (greetWithName && !bodyHasSalamPlaceholder(bodyHtml)) {
+      toast.error(t("emails.validation.noSalamPlaceholder", { token: SALAM_PLACEHOLDER }));
+      return;
+    }
 
     let scheduledAt: string | undefined;
-    if (sendMode === "schedule") {
+    if (mode === "schedule") {
       scheduledAt = localDatetimeToIso(scheduledAtLocal);
       if (!scheduledAt) {
         toast.error(t("emails.validation.noScheduleTime"));
@@ -320,6 +326,8 @@ export default function EmailComposer() {
         return;
       }
     }
+
+    setSendMode(mode);
 
     const attachmentPayload: EmailAttachmentPayload[] = attachments
       .filter((a) => a.contentBase64)
@@ -345,6 +353,14 @@ export default function EmailComposer() {
       scheduledAt,
       attachments: attachmentPayload.length ? attachmentPayload : undefined,
     });
+  };
+
+  const handleSendLaterClick = () => {
+    if (sendMode !== "schedule") {
+      setSendMode("schedule");
+      return;
+    }
+    handleSend("schedule");
   };
 
   const handleClear = async () => {
@@ -377,11 +393,11 @@ export default function EmailComposer() {
       .join(", ");
 
   const previewHtml = (() => {
-    if (!greetWithName || isBodyEmpty(bodyHtml)) return bodyHtml;
+    if (isBodyEmpty(bodyHtml)) return bodyHtml;
     const sample = to[0]
       ? resolveGreetingName(to[0].label, to[0].email)
-      : null;
-    return withPersonalizedGreeting(bodyHtml, sample);
+      : "Aladdin";
+    return applyPersonalizedGreeting(bodyHtml, sample, greetWithName);
   })();
 
   return (
@@ -396,29 +412,6 @@ export default function EmailComposer() {
                 {draftSaving ? t("emails.draftSaving") : t("emails.draftSaved")}
               </span>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              asChild
-            >
-              <Link to="/emails/campaigns">
-                {t("nav.campaigns")}
-              </Link>
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              asChild
-            >
-              <Link to="/emails/history">
-                <History className="h-4 w-4" />
-                {t("emailHistory.title")}
-              </Link>
-            </Button>
             <Button
               type="button"
               variant="outline"
@@ -444,18 +437,46 @@ export default function EmailComposer() {
               type="button"
               size="sm"
               className="gap-1.5"
-              onClick={handleSend}
+              variant={sendMode === "now" ? "default" : "outline"}
+              onClick={() => handleSend("now")}
               disabled={sendMutation.isPending}
             >
-              {sendMutation.isPending ? (
+              {sendMutation.isPending && !sendMutation.variables?.scheduledAt ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
-              ) : sendMode === "schedule" ? (
-                <CalendarClock className="h-4 w-4" />
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              {sendMode === "schedule" ? t("emails.schedule") : t("emails.send")}
+              {t("emails.sendNow")}
             </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={sendMode === "schedule" ? "default" : "outline"}
+              className="gap-1.5"
+              onClick={handleSendLaterClick}
+              disabled={sendMutation.isPending}
+            >
+              {sendMutation.isPending && sendMutation.variables?.scheduledAt ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <CalendarClock className="h-3.5 w-3.5" />
+              )}
+              {sendMode === "schedule" ? t("emails.schedule") : t("emails.sendLater")}
+            </Button>
+            {sendMode === "schedule" && (
+              <Input
+                id="scheduled-at"
+                type="datetime-local"
+                value={scheduledAtLocal}
+                min={minScheduleDatetimeLocal()}
+                onChange={(e) => setScheduledAtLocal(e.target.value)}
+                className="h-8 w-auto min-w-[11.5rem] text-xs"
+                aria-label={t("emails.scheduledAt")}
+                title={t("emails.scheduleTimezoneHint", {
+                  timezone: getLocalTimezoneLabel(),
+                })}
+              />
+            )}
           </>
         }
       />
@@ -587,46 +608,6 @@ export default function EmailComposer() {
               </Label>
             </div>
             <p className="text-xs text-muted-foreground">{t("emails.includeUnsubscribeHint")}</p>
-          </div>
-
-          <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
-            <Label>{t("emails.sendMode")}</Label>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant={sendMode === "now" ? "default" : "outline"}
-                onClick={() => setSendMode("now")}
-              >
-                {t("emails.sendNow")}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={sendMode === "schedule" ? "default" : "outline"}
-                onClick={() => setSendMode("schedule")}
-              >
-                <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
-                {t("emails.sendLater")}
-              </Button>
-            </div>
-            {sendMode === "schedule" && (
-              <div className="space-y-2">
-                <Label htmlFor="scheduled-at">{t("emails.scheduledAt")}</Label>
-                <Input
-                  id="scheduled-at"
-                  type="datetime-local"
-                  value={scheduledAtLocal}
-                  min={minScheduleDatetimeLocal()}
-                  onChange={(e) => setScheduledAtLocal(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {t("emails.scheduleTimezoneHint", {
-                    timezone: getLocalTimezoneLabel(),
-                  })}
-                </p>
-              </div>
-            )}
           </div>
 
           <div className="space-y-2">

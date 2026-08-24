@@ -46,11 +46,16 @@ import {
   createCampaignRequest,
   emptyCampaignDraft,
   fetchCampaignRequest,
+  resolveCampaignContent,
   sendCampaignRequest,
   updateCampaignRequest,
   type UpsertEmailCampaignPayload,
 } from "@/api/campaigns";
-import { fetchEmailTemplateRequest, fetchEmailTemplatesRequest } from "@/api/email-templates";
+import {
+  fetchEmailTemplateRequest,
+  fetchEmailTemplatesRequest,
+  updateEmailTemplateRequest,
+} from "@/api/email-templates";
 import { getApiErrorMessage } from "@/lib/api-error";
 import { queryKeys } from "@/lib/query-keys";
 import { usePermission } from "@/hooks/use-permission";
@@ -107,8 +112,30 @@ export default function CampaignEditor() {
 
   useEffect(() => {
     if (!loadedCampaign || draftInitialized) return;
-    setDraft(campaignToDraft(loadedCampaign));
-    setDraftInitialized(true);
+    let cancelled = false;
+    void (async () => {
+      const base = campaignToDraft(loadedCampaign);
+      if (loadedCampaign.templateId) {
+        try {
+          const content = await resolveCampaignContent(loadedCampaign);
+          if (cancelled) return;
+          setDraft({
+            ...base,
+            defaultSubject: content.subject ?? "",
+            defaultHtmlBody: content.bodyHtml ?? "",
+          });
+        } catch {
+          if (cancelled) return;
+          setDraft(base);
+        }
+      } else {
+        setDraft(base);
+      }
+      setDraftInitialized(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [draftInitialized, loadedCampaign]);
 
   useEffect(() => {
@@ -186,8 +213,8 @@ export default function CampaignEditor() {
       setDraft({
         ...draft,
         templateId,
-        defaultSubject: draft.defaultSubject?.trim() || template.subject || "",
-        defaultHtmlBody: draft.defaultHtmlBody?.trim() || template.htmlBody || "",
+        defaultSubject: template.subject || "",
+        defaultHtmlBody: template.htmlBody || "",
       });
     } catch (error) {
       toast.error(getApiErrorMessage(error, t("emailTemplates.loadError")));
@@ -200,17 +227,28 @@ export default function CampaignEditor() {
       return;
     }
 
-    const payload: UpsertEmailCampaignPayload = {
-      ...draft,
-      name: draft.name.trim(),
-      description: draft.description?.trim() || undefined,
-      defaultSubject: draft.defaultSubject?.trim() || undefined,
-      defaultHtmlBody: draft.defaultHtmlBody?.trim() || undefined,
-      templateId: draft.templateId ?? null,
-    };
-
     setSaving(true);
     try {
+      if (draft.templateId) {
+        const template = await fetchEmailTemplateRequest(draft.templateId);
+        await updateEmailTemplateRequest(draft.templateId, {
+          name: template.name,
+          description: template.description,
+          subject: draft.defaultSubject?.trim() || undefined,
+          htmlBody: draft.defaultHtmlBody?.trim() || undefined,
+        });
+      }
+
+      const payload: UpsertEmailCampaignPayload = {
+        ...draft,
+        name: draft.name.trim(),
+        description: draft.description?.trim() || undefined,
+        // When linked, content lives on the template — don't keep a stale campaign copy.
+        defaultSubject: draft.templateId ? undefined : draft.defaultSubject?.trim() || undefined,
+        defaultHtmlBody: draft.templateId ? undefined : draft.defaultHtmlBody?.trim() || undefined,
+        templateId: draft.templateId ?? null,
+      };
+
       if (isNew) {
         await createCampaignRequest(payload);
         toast.success(t("campaigns.created"));

@@ -757,7 +757,7 @@
     "includeUnsubscribe": "Include unsubscribe link",
     "includeUnsubscribeHint": "Adds a footer link and List-Unsubscribe header. Gmail often files this under Promotions or Spam — turn it off for personal tests.",
     "greetWithName": "Greet with recipient name",
-    "greetWithNameHint": "Adds “Salam {name},” at the top of each email. If a name is missing, only “Salam,” is used. Turn off if you already wrote your own greeting.",
+    "greetWithNameHint": "Place {{salam}} in the editor — it becomes bold “Salam {name},” on send (or “Salam,” if no name). Turn off if you already wrote your own greeting.",
     "fromSender": "From (sender)",
     "fromSenderPlaceholder": "Choose sender identity",
     "fromSenderHint": "How recipients see the sender name in their inbox. Configure identities under Email Delivery → Sender addresses.",
@@ -781,6 +781,7 @@
       "noRecipients": "Add at least one recipient",
       "noSubject": "Subject is required",
       "noBody": "Message body cannot be empty",
+      "noSalamPlaceholder": "Name greeting is on — place {{token}} in the body (use the editor button).",
       "noScheduleTime": "Choose when to send the email",
       "scheduleInPast": "Scheduled time must be in the future",
       "tooManyAttachments": "Maximum {{max}} attachments allowed",
@@ -857,7 +858,10 @@
       "imageReadFailed": "Could not read {{name}}",
       "table": "Insert table",
       "horizontalRule": "Horizontal line",
-      "clearFormatting": "Clear formatting"
+      "clearFormatting": "Clear formatting",
+      "insertSalam": "Insert greeting spot",
+      "insertSalamShort": "{{salam}}",
+      "insertSalamHint": "Inserts {{salam}} at the cursor — replaced with the name on send."
     }
   },
   "emailHistory": {
@@ -966,9 +970,9 @@
     "template": "Email template",
     "templatePlaceholder": "Choose a reusable template",
     "noTemplate": "No template",
-    "templateHint": "Link a shared template or write custom content below. Campaign fields override the template when sending.",
+    "templateHint": "Linked by template ID: edits here or on the template page stay in sync. Without a template, content is stored only on this campaign.",
     "templateAttachmentsHint": "Template files will also be sent: {{files}}",
-    "defaultBodyTemplateHint": "Optional override for the linked template body",
+    "defaultBodyTemplateHint": "This content is the linked template — saving updates the template too.",
     "sendTitle": "Send campaign",
     "sendBody": "Send \"{{name}}\" to {{count}} contact(s) using the campaign defaults or linked template?",
     "sendConfirm": "Send now",

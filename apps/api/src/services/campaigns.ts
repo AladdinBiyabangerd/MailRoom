@@ -177,12 +177,15 @@ export async function sendCampaign(
   const campaign = await findCampaign(id);
   if (!campaign.contacts.length) throw bad(Codes.EMAIL_CAMPAIGN, Msg.CAMPAIGN_NO_CONTACTS);
 
-  let subject = overrides?.subject?.trim() || campaign.defaultSubject || "";
-  let bodyHtml = overrides?.bodyHtml?.trim() || campaign.defaultHtmlBody || "";
-  if ((!subject || !bodyHtml) && campaign.templateId) {
+  let subject = "";
+  let bodyHtml = "";
+  if (campaign.templateId) {
     const template = await findTemplate(campaign.templateId);
-    if (!subject) subject = template.subject ?? "";
-    if (!bodyHtml) bodyHtml = template.htmlBody ?? "";
+    subject = overrides?.subject?.trim() || template.subject || "";
+    bodyHtml = overrides?.bodyHtml?.trim() || template.htmlBody || "";
+  } else {
+    subject = overrides?.subject?.trim() || campaign.defaultSubject || "";
+    bodyHtml = overrides?.bodyHtml?.trim() || campaign.defaultHtmlBody || "";
   }
   if (!subject.trim()) throw bad(Codes.EMAIL_CAMPAIGN, Msg.CAMPAIGN_MISSING_SUBJECT);
   if (!bodyHtml.trim()) throw bad(Codes.EMAIL_CAMPAIGN, Msg.CAMPAIGN_MISSING_BODY);

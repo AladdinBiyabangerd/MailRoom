@@ -53,9 +53,11 @@ import {
   TableIcon,
   UnderlineIcon,
   Undo2,
+  UserRound,
 } from "lucide-react";
 import { FontSize } from "@/lib/tiptap-font-size";
 import { altFromFileName, EDITOR_IMAGE_ACCEPT, fileToEditorImageSrc } from "@/lib/editor-image";
+import { SALAM_PLACEHOLDER } from "@/lib/emailGreeting";
 import {
   asFullHtmlDocument,
   collapseEmbeddedImages,
@@ -254,7 +256,13 @@ function ImageInsertButton({ editor }: { editor: Editor }) {
   );
 }
 
-function EditorToolbar({ editor }: { editor: Editor }) {
+function EditorToolbar({
+  editor,
+  onInsertSalam,
+}: {
+  editor: Editor;
+  onInsertSalam?: () => void;
+}) {
   const { t } = useTranslation();
 
   const setLink = useCallback(() => {
@@ -547,6 +555,14 @@ function EditorToolbar({ editor }: { editor: Editor }) {
       >
         <Minus className="h-4 w-4" />
       </ToolbarButton>
+      {onInsertSalam && (
+        <ToolbarButton onClick={onInsertSalam} title={t("emails.editor.insertSalam")}>
+          <UserRound className="h-4 w-4" />
+          <span className="ml-1 hidden text-[11px] font-medium sm:inline">
+            {t("emails.editor.insertSalamShort")}
+          </span>
+        </ToolbarButton>
+      )}
 
       <Separator orientation="vertical" className="mx-1 h-6" />
 
@@ -573,6 +589,7 @@ export interface RichTextEditorProps {
 
 export type RichTextEditorHandle = {
   insertImages: (files: File[]) => void;
+  insertSalamPlaceholder: () => void;
 };
 
 type EditorMode = "visual" | "html" | "preview";
@@ -714,6 +731,19 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     setMode(next);
   };
 
+  const insertSalamPlaceholder = useCallback(() => {
+    if (useDocumentEditor && mode === "visual") {
+      canvasRef.current?.insertText(SALAM_PLACEHOLDER);
+      return;
+    }
+    if (mode === "html") {
+      const next = `${htmlDraft}${htmlDraft.endsWith("\n") || !htmlDraft ? "" : "\n"}${SALAM_PLACEHOLDER}`;
+      commitHtmlDraft(next);
+      return;
+    }
+    editor?.chain().focus().insertContent(SALAM_PLACEHOLDER).run();
+  }, [commitHtmlDraft, editor, htmlDraft, mode, useDocumentEditor]);
+
   useImperativeHandle(ref, () => ({
     insertImages: (files: File[]) => {
       if (!documentEditorRef.current || !files.length) return;
@@ -724,6 +754,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       }
       canvasRef.current.insertImages(files);
     },
+    insertSalamPlaceholder,
   }));
 
   useEffect(() => {
@@ -776,20 +807,48 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
           />
         </div>
       ) : useDocumentEditor && mode === "visual" ? (
-        <FullHtmlCanvas
-          ref={canvasRef}
-          html={canvasHtml}
-          onChange={onChange}
-          minHeight={minHeight}
-          showImageBar={!hideDocumentImageBar}
-        />
+        <>
+          <div className="flex items-center gap-2 border-b bg-muted/20 px-2 py-1.5">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 text-xs"
+              onClick={insertSalamPlaceholder}
+            >
+              <UserRound className="h-3.5 w-3.5" />
+              {t("emails.editor.insertSalam")}
+            </Button>
+            <p className="text-[11px] text-muted-foreground">{t("emails.editor.insertSalamHint")}</p>
+          </div>
+          <FullHtmlCanvas
+            ref={canvasRef}
+            html={canvasHtml}
+            onChange={onChange}
+            minHeight={minHeight}
+            showImageBar={!hideDocumentImageBar}
+          />
+        </>
       ) : mode === "visual" ? (
         <>
-          <EditorToolbar editor={editor} />
+          <EditorToolbar editor={editor} onInsertSalam={insertSalamPlaceholder} />
           <EditorContent editor={editor} />
         </>
       ) : (
         <div className="space-y-2 p-2">
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 text-xs"
+              onClick={insertSalamPlaceholder}
+            >
+              <UserRound className="h-3.5 w-3.5" />
+              {t("emails.editor.insertSalam")}
+            </Button>
+            <p className="text-[11px] text-muted-foreground">{t("emails.editor.insertSalamHint")}</p>
+          </div>
           <Textarea
             value={htmlDraft}
             onChange={(event) => commitHtmlDraft(event.target.value)}
