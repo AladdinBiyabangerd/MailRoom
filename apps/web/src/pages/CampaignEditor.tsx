@@ -154,7 +154,7 @@ export default function CampaignEditor() {
       toast.error(t("campaigns.invalidEmail"));
       return;
     }
-    if (draft.contacts.some((c) => c.email === normalized)) {
+    if (draft.contacts.some((c) => c.email.toLowerCase() === normalized)) {
       toast.error(t("campaigns.duplicateEmail"));
       return;
     }
@@ -169,21 +169,36 @@ export default function CampaignEditor() {
     setContactName("");
   };
 
-  const removeContact = (email: string) => {
+  const removeContact = (contact: { contactId?: number; email: string }) => {
     setDraft({
       ...draft,
-      contacts: draft.contacts.filter((c) => c.email !== email),
+      contacts: draft.contacts.filter((c) => {
+        if (contact.contactId != null && c.contactId != null) {
+          return c.contactId !== contact.contactId;
+        }
+        return c.email.toLowerCase() !== contact.email.toLowerCase();
+      }),
     });
   };
 
-  const importContacts = (imported: { email: string; name?: string }[]) => {
-    const existing = new Set(draft.contacts.map((c) => c.email));
+  const importContacts = (imported: { contactId?: number; email: string; name?: string }[]) => {
+    const existingEmails = new Set(draft.contacts.map((c) => c.email.toLowerCase()));
+    const existingIds = new Set(
+      draft.contacts.map((c) => c.contactId).filter((id): id is number => id != null),
+    );
     const next = [...draft.contacts];
     let added = 0;
     for (const contact of imported) {
-      if (existing.has(contact.email)) continue;
-      existing.add(contact.email);
-      next.push({ email: contact.email, name: contact.name });
+      const email = contact.email.toLowerCase();
+      if (contact.contactId != null && existingIds.has(contact.contactId)) continue;
+      if (existingEmails.has(email)) continue;
+      if (contact.contactId != null) existingIds.add(contact.contactId);
+      existingEmails.add(email);
+      next.push({
+        contactId: contact.contactId,
+        email,
+        name: contact.name,
+      });
       added += 1;
     }
     setDraft({ ...draft, contacts: next });
@@ -194,6 +209,14 @@ export default function CampaignEditor() {
 
   const selectedContactEmails = useMemo(
     () => new Set(draft.contacts.map((c) => c.email.toLowerCase())),
+    [draft.contacts],
+  );
+
+  const selectedContactIds = useMemo(
+    () =>
+      new Set(
+        draft.contacts.map((c) => c.contactId).filter((id): id is number => id != null),
+      ),
     [draft.contacts],
   );
 
@@ -493,14 +516,18 @@ export default function CampaignEditor() {
             <CardContent className="space-y-4">
               <div className="flex flex-wrap gap-1.5">
                 {draft.contacts.map((contact) => (
-                  <Badge key={contact.email} variant="secondary" className="gap-1 pr-1">
+                  <Badge
+                    key={contact.contactId != null ? `id:${contact.contactId}` : contact.email}
+                    variant="secondary"
+                    className="gap-1 pr-1"
+                  >
                     <span className="max-w-[240px] truncate text-xs">
                       {contact.name ? `${contact.name} <${contact.email}>` : contact.email}
                     </span>
                     <button
                       type="button"
                       className="rounded-sm p-0.5 hover:bg-muted"
-                      onClick={() => removeContact(contact.email)}
+                      onClick={() => removeContact(contact)}
                       aria-label={t("emails.recipients.remove")}
                     >
                       <Trash2 className="h-3 w-3" />
@@ -516,6 +543,7 @@ export default function CampaignEditor() {
 
               <SavedContactPickerButton
                 selectedEmails={selectedContactEmails}
+                selectedContactIds={selectedContactIds}
                 onAdd={(contact) => importContacts([contact])}
                 onAddMany={importContacts}
                 className="h-8 gap-1 px-2 text-xs"

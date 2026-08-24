@@ -123,11 +123,12 @@ model EmailTemplateAttachment {
 }
 
 model EmailAddressBookContact {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique @db.VarChar(160)
-  name      String?  @db.VarChar(120)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id            Int                    @id @default(autoincrement())
+  email         String                 @unique @db.VarChar(160)
+  name          String?                @db.VarChar(120)
+  createdAt     DateTime               @default(now()) @map("created_at")
+  updatedAt     DateTime               @updatedAt @map("updated_at")
+  campaignLinks EmailCampaignContact[]
 
   @@map("email_address_book_contacts")
 }
@@ -147,14 +148,15 @@ model EmailCampaign {
 }
 
 model EmailCampaignContact {
-  id         Int           @id @default(autoincrement())
-  campaignId Int           @map("campaign_id")
-  email      String        @db.VarChar(160)
-  name       String?       @db.VarChar(120)
-  createdAt  DateTime      @default(now()) @map("created_at")
-  updatedAt  DateTime      @updatedAt @map("updated_at")
-  campaign   EmailCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  id         Int                      @id @default(autoincrement())
+  campaignId Int                      @map("campaign_id")
+  contactId  Int                      @map("contact_id")
+  createdAt  DateTime                 @default(now()) @map("created_at")
+  updatedAt  DateTime                 @updatedAt @map("updated_at")
+  campaign   EmailCampaign            @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact    EmailAddressBookContact  @relation(fields: [contactId], references: [id], onDelete: Restrict)
 
+  @@unique([campaignId, contactId])
   @@map("email_campaign_contacts")
 }
 

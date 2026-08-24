@@ -28,6 +28,7 @@ import { queryKeys } from "@/lib/query-keys";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export interface CampaignContactDraft {
+  contactId?: number;
   email: string;
   name?: string;
 }
@@ -36,6 +37,7 @@ interface SavedContactPickerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedEmails: Set<string>;
+  selectedContactIds?: Set<number>;
   onAdd: (contact: CampaignContactDraft) => void;
   onAddMany: (contacts: CampaignContactDraft[]) => void;
 }
@@ -44,6 +46,7 @@ export function SavedContactPickerDialog({
   open,
   onOpenChange,
   selectedEmails,
+  selectedContactIds,
   onAdd,
   onAddMany,
 }: SavedContactPickerDialogProps) {
@@ -85,19 +88,30 @@ export function SavedContactPickerDialog({
 
   const contacts = contactsPage?.items ?? [];
 
-  const availableContacts = useMemo(
-    () => contacts.filter((c) => !selectedEmails.has(c.email.toLowerCase())),
-    [contacts, selectedEmails],
-  );
+  const isSelected = (contact: EmailAddressBookContact) =>
+    Boolean(selectedContactIds?.has(contact.id)) ||
+    selectedEmails.has(contact.email.toLowerCase());
+
+  const availableContacts = useMemo(() => {
+    return contacts.filter((contact) => {
+      if (selectedContactIds?.has(contact.id)) return false;
+      if (selectedEmails.has(contact.email.toLowerCase())) return false;
+      return true;
+    });
+  }, [contacts, selectedEmails, selectedContactIds]);
+
 
   const createMutation = useMutation({
     mutationFn: createEmailContactRequest,
     onSuccess: async (created) => {
       toast.success(t("emailContacts.created"));
       await queryClient.invalidateQueries({ queryKey: queryKeys.emailContacts.all });
-      const email = created.email.toLowerCase();
-      if (!selectedEmails.has(email)) {
-        onAdd({ email, name: created.name });
+      if (!isSelected(created)) {
+        onAdd({
+          contactId: created.id,
+          email: created.email.toLowerCase(),
+          name: created.name,
+        });
       }
       setNewEmail("");
       setNewName("");
@@ -108,13 +122,17 @@ export function SavedContactPickerDialog({
   });
 
   const toggleContact = (contact: EmailAddressBookContact) => {
-    const email = contact.email.toLowerCase();
-    if (selectedEmails.has(email)) return;
-    onAdd({ email, name: contact.name });
+    if (isSelected(contact)) return;
+    onAdd({
+      contactId: contact.id,
+      email: contact.email.toLowerCase(),
+      name: contact.name,
+    });
   };
 
   const addAllVisible = () => {
     const toAdd = availableContacts.map((c) => ({
+      contactId: c.id,
       email: c.email.toLowerCase(),
       name: c.name,
     }));
@@ -231,15 +249,15 @@ export function SavedContactPickerDialog({
                 </p>
               ) : (
                 contacts.map((contact) => {
-                  const isSelected = selectedEmails.has(contact.email.toLowerCase());
+                  const selected = isSelected(contact);
                   return (
                     <label
                       key={contact.id}
                       className="flex cursor-pointer items-start gap-2.5 rounded-md px-2 py-2 hover:bg-muted/60"
                     >
                       <Checkbox
-                        checked={isSelected}
-                        disabled={isSelected}
+                        checked={selected}
+                        disabled={selected}
                         onCheckedChange={() => toggleContact(contact)}
                         className="mt-0.5"
                       />
@@ -263,6 +281,7 @@ export function SavedContactPickerDialog({
 
 interface SavedContactPickerButtonProps {
   selectedEmails: Set<string>;
+  selectedContactIds?: Set<number>;
   onAdd: (contact: CampaignContactDraft) => void;
   onAddMany: (contacts: CampaignContactDraft[]) => void;
   size?: "sm" | "default";
@@ -272,6 +291,7 @@ interface SavedContactPickerButtonProps {
 
 export function SavedContactPickerButton({
   selectedEmails,
+  selectedContactIds,
   onAdd,
   onAddMany,
   size = "sm",
@@ -297,6 +317,7 @@ export function SavedContactPickerButton({
         open={open}
         onOpenChange={setOpen}
         selectedEmails={selectedEmails}
+        selectedContactIds={selectedContactIds}
         onAdd={onAdd}
         onAddMany={onAddMany}
       />

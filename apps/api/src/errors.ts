@@ -87,6 +87,7 @@ export const Msg = {
   EMAIL_SENDER_EXISTS: "exception.email_sender_exists",
   EMAIL_ALL_RECIPIENTS_SUPPRESSED: "exception.email_all_recipients_suppressed",
   EMAIL_CONTACT_EXISTS: "exception.email_contact_exists",
+  EMAIL_CONTACT_IN_USE: "exception.email_contact_in_use",
   EMAIL_RECIPIENT_LIMIT: "exception.email_recipient_limit",
   EMAIL_SUBJECT_TOO_LONG: "exception.email_subject_too_long",
   EMAIL_BODY_TOO_LONG: "exception.email_body_too_long",

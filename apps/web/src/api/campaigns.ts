@@ -3,7 +3,10 @@ import { fetchEmailTemplateRequest } from "./email-templates";
 import type { SendEmailResponse } from "./emails";
 
 export interface EmailCampaignContact {
+  /** Join-row id when returned from the API. */
   id?: number;
+  /** Address-book contact id — campaigns store membership by this. */
+  contactId?: number;
   email: string;
   name?: string;
 }
@@ -59,9 +62,9 @@ const demoCampaigns: EmailCampaign[] = [
     templateId: 1,
     contactCount: 3,
     contacts: [
-      { id: 1, email: "info@caspian.az", name: "Caspian Resort" },
-      { id: 2, email: "contact@oldcity.az", name: "Old City Boutique" },
-      { id: 3, email: "sales@heritage.az", name: "Heritage Stays" },
+      { id: 1, contactId: 1, email: "info@caspian.az", name: "Caspian Resort" },
+      { id: 2, contactId: 2, email: "contact@oldcity.az", name: "Old City Boutique" },
+      { id: 3, contactId: 3, email: "sales@heritage.az", name: "Heritage Stays" },
     ],
   },
   {
@@ -71,8 +74,8 @@ const demoCampaigns: EmailCampaign[] = [
     defaultSubject: "How is your MailRoom trial going?",
     contactCount: 2,
     contacts: [
-      { id: 4, email: "manager@sheki.az", name: "Sheki Silk Inn" },
-      { id: 5, email: "front@gabala.az", name: "Gabala Mountain Lodge" },
+      { id: 4, contactId: 4, email: "manager@sheki.az", name: "Sheki Silk Inn" },
+      { id: 5, contactId: 5, email: "front@gabala.az", name: "Gabala Mountain Lodge" },
     ],
   },
 ];
@@ -203,6 +206,7 @@ export function campaignToDraft(campaign: EmailCampaign): UpsertEmailCampaignPay
     defaultHtmlBody: campaign.defaultHtmlBody ?? "",
     templateId: campaign.templateId ?? null,
     contacts: (campaign.contacts ?? []).map((c) => ({
+      contactId: c.contactId,
       email: c.email,
       name: c.name ?? "",
     })),

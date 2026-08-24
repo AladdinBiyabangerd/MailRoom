@@ -1,9 +1,21 @@
 import { prisma } from "../db.js";
 import { Codes, Msg, bad, notFound } from "../errors.js";
-import { findTemplate, syncContactsFromCampaign } from "./catalog.js";
+import { ensureContact, findTemplate, getContact } from "./catalog.js";
 import { normalizeEmail } from "./auth.js";
 import { sendAdminEmail } from "./emails.js";
 import type { AuthUser } from "../auth.js";
+
+type CampaignContactInput = {
+  contactId?: number;
+  email?: string;
+  name?: string;
+};
+
+type CampaignContactRow = {
+  id: number;
+  contactId: number;
+  contact: { email: string; name: string | null };
+};
 
 function iso(value: Date | null | undefined) {
   return value ? value.toISOString() : undefined;
@@ -19,7 +31,7 @@ function mapCampaign(
     templateId: number | null;
     createdAt: Date;
     updatedAt: Date;
-    contacts: { id: number; email: string; name: string | null }[];
+    contacts: CampaignContactRow[];
   },
   includeContacts: boolean,
 ) {
@@ -32,12 +44,24 @@ function mapCampaign(
     templateId: c.templateId,
     contactCount: c.contacts.length,
     contacts: includeContacts
-      ? c.contacts.map((x) => ({ id: x.id, email: x.email, name: x.name ?? undefined }))
+      ? c.contacts.map((x) => ({
+          id: x.id,
+          contactId: x.contactId,
+          email: x.contact.email,
+          name: x.contact.name ?? undefined,
+        }))
       : undefined,
     createdAt: iso(c.createdAt),
     updatedAt: iso(c.updatedAt),
   };
 }
+
+const campaignContactInclude = {
+  contacts: {
+    orderBy: { id: "asc" as const },
+    include: { contact: true },
+  },
+};
 
 async function ensureUniqueName(name: string, excludeId?: number) {
   const found = await prisma.emailCampaign.findFirst({
@@ -49,7 +73,7 @@ async function ensureUniqueName(name: string, excludeId?: number) {
 export async function findCampaign(id: number) {
   const c = await prisma.emailCampaign.findUnique({
     where: { id },
-    include: { contacts: { orderBy: { id: "asc" } } },
+    include: campaignContactInclude,
   });
   if (!c) throw notFound(Codes.EMAIL_CAMPAIGN, Msg.NOT_FOUND, Msg.ENTITY_EMAIL_CAMPAIGN);
   return c;
@@ -64,7 +88,7 @@ export async function searchCampaigns(search?: string, page?: number, limit?: nu
   const [items, total] = await Promise.all([
     prisma.emailCampaign.findMany({
       where,
-      include: { contacts: true },
+      include: campaignContactInclude,
       orderBy: { updatedAt: "desc" },
       skip: (p - 1) * l,
       take: l,
@@ -78,23 +102,29 @@ export async function getCampaign(id: number) {
   return mapCampaign(await findCampaign(id), true);
 }
 
-async function replaceContacts(campaignId: number, contacts: { email: string; name?: string }[]) {
-  await prisma.emailCampaignContact.deleteMany({ where: { campaignId } });
-  const unique = new Map<string, { email: string; name?: string }>();
+async function resolveContactIds(contacts: CampaignContactInput[]): Promise<number[]> {
+  const ids = new Set<number>();
   for (const c of contacts ?? []) {
-    if (!c?.email?.trim()) continue;
-    unique.set(normalizeEmail(c.email), { email: normalizeEmail(c.email), name: c.name?.trim() });
+    if (c.contactId != null && Number.isFinite(c.contactId)) {
+      await getContact(c.contactId);
+      ids.add(c.contactId);
+      continue;
+    }
+    if (!c.email?.trim()) continue;
+    const ensured = await ensureContact({ email: c.email, name: c.name });
+    ids.add(ensured.id);
   }
-  if (unique.size) {
+  return [...ids];
+}
+
+async function replaceContacts(campaignId: number, contacts: CampaignContactInput[]) {
+  const contactIds = await resolveContactIds(contacts);
+  await prisma.emailCampaignContact.deleteMany({ where: { campaignId } });
+  if (contactIds.length) {
     await prisma.emailCampaignContact.createMany({
-      data: [...unique.values()].map((c) => ({
-        campaignId,
-        email: c.email,
-        name: c.name || null,
-      })),
+      data: contactIds.map((contactId) => ({ campaignId, contactId })),
     });
   }
-  await syncContactsFromCampaign([...unique.values()]);
 }
 
 async function resolveTemplateId(templateId?: number | null) {
@@ -109,7 +139,7 @@ export async function createCampaign(body: {
   defaultSubject?: string;
   defaultHtmlBody?: string;
   templateId?: number | null;
-  contacts: { email: string; name?: string }[];
+  contacts: CampaignContactInput[];
 }) {
   const name = body.name.trim();
   await ensureUniqueName(name);
@@ -134,7 +164,7 @@ export async function updateCampaign(
     defaultSubject?: string;
     defaultHtmlBody?: string;
     templateId?: number | null;
-    contacts: { email: string; name?: string }[];
+    contacts: CampaignContactInput[];
   },
 ) {
   await findCampaign(id);
@@ -191,11 +221,11 @@ export async function sendCampaign(
   if (!bodyHtml.trim()) throw bad(Codes.EMAIL_CAMPAIGN, Msg.CAMPAIGN_MISSING_BODY);
 
   const recipientNames = Object.fromEntries(
-    campaign.contacts.map((c) => [normalizeEmail(c.email), c.name]),
+    campaign.contacts.map((c) => [normalizeEmail(c.contact.email), c.contact.name]),
   );
 
   return sendAdminEmail(actor, {
-    to: campaign.contacts.map((c) => c.email),
+    to: campaign.contacts.map((c) => c.contact.email),
     cc: overrides?.cc,
     bcc: overrides?.bcc,
     subject,

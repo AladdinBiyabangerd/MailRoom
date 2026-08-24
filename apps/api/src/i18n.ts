@@ -44,6 +44,7 @@ const en: Dictionary = {
   "exception.email_sender_exists": "This sender email address is already registered",
   "exception.email_all_recipients_suppressed": "All recipients have unsubscribed and were removed from this send",
   "exception.email_contact_exists": "An email contact with address '{0}' already exists",
+  "exception.email_contact_in_use": "This contact is used by one or more campaigns and cannot be deleted",
   "exception.email_recipient_limit": "Maximum {0} recipients allowed per email",
   "exception.email_subject_too_long": "Subject must be at most {0} characters",
   "exception.email_body_too_long": "Message body must be at most {0} characters",

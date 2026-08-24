@@ -291,22 +291,38 @@ export async function updateContact(id: number, body: { email: string; name?: st
   return mapContact(c);
 }
 
+export async function ensureContact(body: { email: string; name?: string }) {
+  const email = normalizeEmail(body.email);
+  if (!email) throw bad(Codes.EMAIL_ADDRESS_BOOK_CONTACT, Msg.NOT_FOUND, Msg.ENTITY_EMAIL_CONTACT);
+  const name = body.name?.trim() || null;
+  const existing = await prisma.emailAddressBookContact.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+  });
+  if (existing) {
+    if (name && name !== (existing.name ?? null)) {
+      const updated = await prisma.emailAddressBookContact.update({
+        where: { id: existing.id },
+        data: { name },
+      });
+      return mapContact(updated);
+    }
+    return mapContact(existing);
+  }
+  const created = await prisma.emailAddressBookContact.create({
+    data: { email, name },
+  });
+  return mapContact(created);
+}
+
 export async function deleteContact(id: number) {
   await getContact(id);
+  const inUse = await prisma.emailCampaignContact.count({ where: { contactId: id } });
+  if (inUse > 0) {
+    throw bad(Codes.EMAIL_ADDRESS_BOOK_CONTACT, Msg.EMAIL_CONTACT_IN_USE);
+  }
   await prisma.emailAddressBookContact.delete({ where: { id } });
 }
 
-export async function syncContactsFromCampaign(contacts: { email: string; name?: string }[]) {
-  for (const contact of contacts) {
-    const email = normalizeEmail(contact.email);
-    if (!email) continue;
-    await prisma.emailAddressBookContact.upsert({
-      where: { email },
-      create: { email, name: contact.name?.trim() || null },
-      update: contact.name?.trim() ? { name: contact.name.trim() } : {},
-    });
-  }
-}
 
 type DraftRecipient = { email: string; name?: string | null };
 

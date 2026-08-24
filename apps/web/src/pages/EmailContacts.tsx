@@ -78,6 +78,11 @@ export default function EmailContacts() {
   const invalidateContacts = () =>
     queryClient.invalidateQueries({ queryKey: queryKeys.emailContacts.all });
 
+  const invalidateContactUsages = async () => {
+    await invalidateContacts();
+    await queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.all });
+  };
+
   const columns: Column<EmailAddressBookContact>[] = useMemo(
     () => [
       {
@@ -149,7 +154,7 @@ export default function EmailContacts() {
       }
       setDraft(null);
       setEditing(null);
-      await invalidateContacts();
+      await invalidateContactUsages();
     } catch (error) {
       toast.error(getApiErrorMessage(error, t("emailContacts.saveError")));
     } finally {
