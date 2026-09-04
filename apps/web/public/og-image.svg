@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none" role="img" aria-label="MailRoom">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7FAFC"/>
+      <stop offset="1" stop-color="#E4EEF8"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="96" y1="0" x2="340" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5BA0E0"/>
+      <stop offset="1" stop-color="#2F6AA8"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3A82C4"/>
+      <stop offset="1" stop-color="#2F6AA8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(940 170) rotate(90) scale(300 380)">
+      <stop stop-color="#3A82C4" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#3A82C4" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <circle cx="1010" cy="130" r="118" stroke="#2F6AA8" stroke-opacity="0.16" stroke-dasharray="12 10"/>
+
+  <rect x="96" y="200" width="68" height="68" rx="15" fill="url(#mark)"/>
+  <path d="M113 243V217l20-8 20 8v26" fill="none" stroke="#fff" stroke-width="3.6" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M113 230h40" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/>
+  <circle cx="133" cy="247" r="3.2" fill="#fff"/>
+
+  <text x="184" y="250" fill="#152033" font-family="Avenir Next, Segoe UI, sans-serif" font-size="72" font-weight="800" letter-spacing="-2">MailRoom</text>
+  <text x="96" y="330" fill="#4F5D73" font-family="Avenir Next, Segoe UI, sans-serif" font-size="34" font-weight="600">Compose / Campaigns / Templates / Analytics</text>
+  <text x="96" y="388" fill="#6B7A90" font-family="Avenir Next, Segoe UI, sans-serif" font-size="26" font-weight="500">Team email workspace - write, send, and track in one place</text>
+  <rect x="96" y="430" width="240" height="10" rx="5" fill="url(#accent)"/>
+</svg>
