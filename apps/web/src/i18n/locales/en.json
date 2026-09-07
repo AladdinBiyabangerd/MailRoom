@@ -92,6 +92,7 @@
     "signingIn": "Signing in…",
     "signOut": "Sign out",
     "secureNote": "Administrator access only. All activity is audited.",
+    "builderCredit": "Designed & built by",
     "invalidCredentials": "Invalid email or password.",
     "genericError": "Unable to sign in. Please try again.",
     "validation": {
