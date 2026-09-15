@@ -5,9 +5,9 @@ import { formatFromLabel } from "../mail/html.js";
 import { assertAttachmentCount, assertAttachmentSize, decodeAttachmentBase64 } from "../mail/attachments.js";
 import { normalizeEmail } from "./auth.js";
 
-function pageParams(page?: number, limit?: number) {
+function pageParams(page?: number, limit?: number, maxLimit = 100) {
   const p = !page || page < 1 ? 1 : page;
-  const l = !limit || limit < 1 ? 20 : Math.min(limit, 100);
+  const l = !limit || limit < 1 ? 20 : Math.min(limit, maxLimit);
   return { page: p, limit: l, skip: (p - 1) * l };
 }
 
@@ -310,8 +310,12 @@ async function loadContact(id: number) {
   return c;
 }
 
-export async function listLabels() {
+export async function listLabels(search?: string) {
+  const where = search?.trim()
+    ? { name: { contains: search.trim(), mode: "insensitive" as const } }
+    : {};
   const items = await prisma.emailLabel.findMany({
+    where,
     orderBy: { name: "asc" },
     include: { _count: { select: { contacts: true } } },
   });
@@ -324,8 +328,65 @@ export async function listLabels() {
   }));
 }
 
+async function findLabel(id: number) {
+  const label = await prisma.emailLabel.findUnique({
+    where: { id },
+    include: { _count: { select: { contacts: true } } },
+  });
+  if (!label) throw notFound(Codes.EMAIL_LABEL, Msg.NOT_FOUND, Msg.ENTITY_EMAIL_LABEL);
+  return label;
+}
+
+function mapLabel(l: {
+  id: number;
+  name: string;
+  createdAt: Date;
+  updatedAt: Date;
+  _count?: { contacts: number };
+}) {
+  return {
+    id: l.id,
+    name: l.name,
+    contactCount: l._count?.contacts ?? 0,
+    createdAt: iso(l.createdAt),
+    updatedAt: iso(l.updatedAt),
+  };
+}
+
+export async function createLabel(body: { name: string }) {
+  const name = body.name.trim().slice(0, 120);
+  if (!name) throw bad(Codes.EMAIL_LABEL, Msg.VALIDATION_FAILED);
+  const exists = await prisma.emailLabel.findFirst({
+    where: { name: { equals: name, mode: "insensitive" } },
+  });
+  if (exists) throw bad(Codes.EMAIL_LABEL, Msg.EMAIL_LABEL_EXISTS, name);
+  const created = await prisma.emailLabel.create({ data: { name } });
+  return mapLabel({ ...created, _count: { contacts: 0 } });
+}
+
+export async function updateLabel(id: number, body: { name: string }) {
+  await findLabel(id);
+  const name = body.name.trim().slice(0, 120);
+  if (!name) throw bad(Codes.EMAIL_LABEL, Msg.VALIDATION_FAILED);
+  const clash = await prisma.emailLabel.findFirst({
+    where: { name: { equals: name, mode: "insensitive" }, NOT: { id } },
+  });
+  if (clash) throw bad(Codes.EMAIL_LABEL, Msg.EMAIL_LABEL_EXISTS, name);
+  const updated = await prisma.emailLabel.update({
+    where: { id },
+    data: { name },
+    include: { _count: { select: { contacts: true } } },
+  });
+  return mapLabel(updated);
+}
+
+export async function deleteLabel(id: number) {
+  await findLabel(id);
+  await prisma.emailLabel.delete({ where: { id } });
+}
+
 export async function searchContacts(search?: string, page?: number, limit?: number, label?: string) {
-  const p = pageParams(page, limit);
+  const p = pageParams(page, limit, 100);
   const labelName = label?.trim();
   const where = {
     ...(search?.trim()

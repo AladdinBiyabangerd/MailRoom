@@ -49,6 +49,7 @@ export const Codes = {
   EMAIL_DRAFT: "EMAIL_DRAFT",
   EMAIL_SUPPRESSION: "EMAIL_SUPPRESSION",
   EMAIL_ADDRESS_BOOK_CONTACT: "EMAIL_ADDRESS_BOOK_CONTACT",
+  EMAIL_LABEL: "EMAIL_LABEL",
   EMAIL_SENDER_IDENTITY: "EMAIL_SENDER_IDENTITY",
   SENT_EMAIL: "SENT_EMAIL",
   MAIL_CONFIG: "MAIL_CONFIG",
@@ -88,6 +89,7 @@ export const Msg = {
   EMAIL_ALL_RECIPIENTS_SUPPRESSED: "exception.email_all_recipients_suppressed",
   EMAIL_CONTACT_EXISTS: "exception.email_contact_exists",
   EMAIL_CONTACT_IN_USE: "exception.email_contact_in_use",
+  EMAIL_LABEL_EXISTS: "exception.email_label_exists",
   EMAIL_RECIPIENT_LIMIT: "exception.email_recipient_limit",
   EMAIL_SUBJECT_TOO_LONG: "exception.email_subject_too_long",
   EMAIL_BODY_TOO_LONG: "exception.email_body_too_long",
@@ -113,6 +115,7 @@ export const Msg = {
   ENTITY_EMAIL_TEMPLATE: "entity.email_template",
   ENTITY_EMAIL_DRAFT: "entity.email_draft",
   ENTITY_EMAIL_CONTACT: "entity.email_address_book_contact",
+  ENTITY_EMAIL_LABEL: "entity.email_label",
   ENTITY_SENT_EMAIL: "entity.sent_email",
   ENTITY_MAIL_CONFIG: "entity.mail_config",
 } as const;

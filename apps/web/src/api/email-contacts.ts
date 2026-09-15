@@ -56,18 +56,58 @@ const demoContacts: EmailAddressBookContact[] = [
   { id: 5, email: "front@gabala.az", name: "Gabala Mountain Lodge", labels: [] },
 ];
 
-const demoLabels: EmailLabel[] = [
+let demoLabels: EmailLabel[] = [
   { id: 1, name: "Hotels", contactCount: 2 },
   { id: 2, name: "Baku", contactCount: 2 },
 ];
 
-export async function fetchEmailLabelsRequest(): Promise<EmailLabel[]> {
+export async function fetchEmailLabelsRequest(params?: {
+  search?: string;
+}): Promise<EmailLabel[]> {
   if (isDemoMode) {
     await new Promise((r) => setTimeout(r, 150));
-    return demoLabels;
+    const search = params?.search?.trim().toLowerCase();
+    return search
+      ? demoLabels.filter((l) => l.name.toLowerCase().includes(search))
+      : [...demoLabels];
   }
-  const { data } = await adminApi.get<EmailLabel[]>("/email-labels");
+  const { data } = await adminApi.get<EmailLabel[]>("/email-labels", { params });
   return data;
+}
+
+export async function createEmailLabelRequest(payload: { name: string }): Promise<EmailLabel> {
+  if (isDemoMode) {
+    await new Promise((r) => setTimeout(r, 200));
+    const label = { id: Date.now(), name: payload.name.trim(), contactCount: 0 };
+    demoLabels = [...demoLabels, label].sort((a, b) => a.name.localeCompare(b.name));
+    return label;
+  }
+  const { data } = await adminApi.post<EmailLabel>("/email-labels", payload);
+  return data;
+}
+
+export async function updateEmailLabelRequest(
+  id: number,
+  payload: { name: string },
+): Promise<EmailLabel> {
+  if (isDemoMode) {
+    await new Promise((r) => setTimeout(r, 200));
+    demoLabels = demoLabels.map((l) =>
+      l.id === id ? { ...l, name: payload.name.trim() } : l,
+    );
+    return demoLabels.find((l) => l.id === id)!;
+  }
+  const { data } = await adminApi.put<EmailLabel>(`/email-labels/${id}`, payload);
+  return data;
+}
+
+export async function deleteEmailLabelRequest(id: number): Promise<void> {
+  if (isDemoMode) {
+    await new Promise((r) => setTimeout(r, 200));
+    demoLabels = demoLabels.filter((l) => l.id !== id);
+    return;
+  }
+  await adminApi.delete(`/email-labels/${id}`);
 }
 
 export async function fetchEmailContactsRequest(params?: {

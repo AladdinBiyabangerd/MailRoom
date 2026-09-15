@@ -150,8 +150,19 @@ export async function registerRoutes(app: FastifyInstance) {
     return noContent(reply);
   });
 
-  app.get("/admin/v1/email-labels", { preHandler: requirePermissions(P.emailsRead) }, async () => {
-    return catalog.listLabels();
+  app.get("/admin/v1/email-labels", { preHandler: requirePermissions(P.emailsRead) }, async (request) => {
+    const query = q(request);
+    return catalog.listLabels(typeof query.search === "string" ? query.search : undefined);
+  });
+  app.post("/admin/v1/email-labels", { preHandler: requirePermissions(P.emailsWrite) }, async (request, reply) => {
+    return reply.code(201).send(await catalog.createLabel(request.body as never));
+  });
+  app.put("/admin/v1/email-labels/:id", { preHandler: requirePermissions(P.emailsWrite) }, async (request) => {
+    return catalog.updateLabel(idParam(request), request.body as never);
+  });
+  app.delete("/admin/v1/email-labels/:id", { preHandler: requirePermissions(P.emailsWrite) }, async (request, reply) => {
+    await catalog.deleteLabel(idParam(request));
+    return noContent(reply);
   });
   app.get("/admin/v1/email-contacts", { preHandler: requirePermissions(P.emailsRead) }, async (request) => {
     const query = q(request);
