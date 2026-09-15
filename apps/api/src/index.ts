@@ -5,9 +5,13 @@ import { buildApp } from "./app.js";
 import { dispatchDueScheduled } from "./services/emails.js";
 import { cleanupExpiredRefreshTokens } from "./services/auth.js";
 
+/** Deploy probe — harmless marker to verify Railway watches this repo. */
+const DEPLOY_PROBE = "contact-labels-2026-09-15";
+
 async function main() {
   await bootstrapAdmin();
   const app = await buildApp();
+  app.log.info({ deployProbe: DEPLOY_PROBE }, "MailRoom API starting");
   await app.listen({ port: config.port, host: "0.0.0.0" });
 
   setInterval(() => {
