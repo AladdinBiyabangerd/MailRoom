@@ -6,7 +6,7 @@ import { dispatchDueScheduled } from "./services/emails.js";
 import { cleanupExpiredRefreshTokens } from "./services/auth.js";
 
 /** Deploy probe — harmless marker to verify Railway watches this repo. */
-const DEPLOY_PROBE = "contact-labels-2026-09-15";
+const DEPLOY_PROBE = "contact-labels-2026-09-15b";
 
 async function main() {
   await bootstrapAdmin();
