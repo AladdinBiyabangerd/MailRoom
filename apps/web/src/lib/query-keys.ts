@@ -12,6 +12,7 @@ export const queryKeys = {
   },
   emailContacts: {
     all: ["email-contacts"] as const,
+    labels: ["email-contacts", "labels"] as const,
     list: (params: Record<string, unknown>) =>
       ["email-contacts", "list", params] as const,
   },

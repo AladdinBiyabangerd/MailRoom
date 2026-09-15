@@ -10,6 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
+    "import:legacy-contacts": "tsx scripts/import-legacy-contacts.ts",
     "test": "tsx --test src/mail/html.test.ts src/services/emails.analytics.test.ts src/services/emails.resend.test.ts"
   },
   "dependencies": {

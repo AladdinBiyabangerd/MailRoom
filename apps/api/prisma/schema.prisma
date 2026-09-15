@@ -129,8 +129,31 @@ model EmailAddressBookContact {
   createdAt     DateTime               @default(now()) @map("created_at")
   updatedAt     DateTime               @updatedAt @map("updated_at")
   campaignLinks EmailCampaignContact[]
+  labelLinks    EmailContactLabel[]
 
   @@map("email_address_book_contacts")
+}
+
+model EmailLabel {
+  id        Int                @id @default(autoincrement())
+  name      String             @unique @db.VarChar(120)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+  contacts  EmailContactLabel[]
+
+  @@map("email_labels")
+}
+
+model EmailContactLabel {
+  id        Int                     @id @default(autoincrement())
+  contactId Int                     @map("contact_id")
+  labelId   Int                     @map("label_id")
+  createdAt DateTime                @default(now()) @map("created_at")
+  contact   EmailAddressBookContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  label     EmailLabel              @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, labelId])
+  @@map("email_contact_labels")
 }
 
 model EmailCampaign {

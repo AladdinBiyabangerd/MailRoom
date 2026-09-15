@@ -150,9 +150,17 @@ export async function registerRoutes(app: FastifyInstance) {
     return noContent(reply);
   });
 
+  app.get("/admin/v1/email-labels", { preHandler: requirePermissions(P.emailsRead) }, async () => {
+    return catalog.listLabels();
+  });
   app.get("/admin/v1/email-contacts", { preHandler: requirePermissions(P.emailsRead) }, async (request) => {
     const query = q(request);
-    return catalog.searchContacts(query.search, Number(query.page) || 1, Number(query.limit) || 20);
+    return catalog.searchContacts(
+      query.search,
+      Number(query.page) || 1,
+      Number(query.limit) || 20,
+      typeof query.label === "string" ? query.label : undefined,
+    );
   });
   app.get("/admin/v1/email-contacts/:id", { preHandler: requirePermissions(P.emailsRead) }, async (request) => {
     return catalog.getContact(idParam(request));

@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -18,10 +19,19 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   createEmailContactRequest,
   deleteEmailContactRequest,
   emailContactDisplayName,
   fetchEmailContactsRequest,
+  fetchEmailLabelsRequest,
+  parseLabelInput,
   updateEmailContactRequest,
   type EmailAddressBookContact,
 } from "@/api/email-contacts";
@@ -30,19 +40,22 @@ import { useQueryErrorToast } from "@/hooks/use-query-error-toast";
 import { queryKeys } from "@/lib/query-keys";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ALL_LABELS = "__all__";
 
 interface ContactDraft {
   email: string;
   name: string;
+  labels: string;
 }
 
-const emptyDraft = (): ContactDraft => ({ email: "", name: "" });
+const emptyDraft = (): ContactDraft => ({ email: "", name: "", labels: "" });
 
 export default function EmailContacts() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [labelFilter, setLabelFilter] = useState(ALL_LABELS);
   const [draft, setDraft] = useState<ContactDraft | null>(null);
   const [editing, setEditing] = useState<EmailAddressBookContact | null>(null);
   const [deleting, setDeleting] = useState<EmailAddressBookContact | null>(null);
@@ -57,10 +70,11 @@ export default function EmailContacts() {
   const listParams = useMemo(
     () => ({
       search: debouncedSearch || undefined,
+      label: labelFilter === ALL_LABELS ? undefined : labelFilter,
       page: 1,
       limit: 200,
     }),
-    [debouncedSearch],
+    [debouncedSearch, labelFilter],
   );
 
   const {
@@ -70,6 +84,11 @@ export default function EmailContacts() {
   } = useQuery({
     queryKey: queryKeys.emailContacts.list(listParams),
     queryFn: () => fetchEmailContactsRequest(listParams),
+  });
+
+  const { data: labels = [] } = useQuery({
+    queryKey: queryKeys.emailContacts.labels,
+    queryFn: fetchEmailLabelsRequest,
   });
 
   const rows = contactsPage?.items ?? [];
@@ -96,6 +115,22 @@ export default function EmailContacts() {
         ),
       },
       {
+        key: "labels",
+        header: t("emailContacts.labels"),
+        render: (row) =>
+          row.labels?.length ? (
+            <div className="flex flex-wrap gap-1">
+              {row.labels.map((label) => (
+                <Badge key={label.id} variant="secondary" className="font-normal">
+                  {label.name}
+                </Badge>
+              ))}
+            </div>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
+      },
+      {
         key: "actions",
         header: t("common.actions"),
         className: "w-[120px] text-right",
@@ -109,7 +144,11 @@ export default function EmailContacts() {
                 className="h-8 w-8"
                 onClick={() => {
                   setEditing(row);
-                  setDraft({ email: row.email, name: row.name ?? "" });
+                  setDraft({
+                    email: row.email,
+                    name: row.name ?? "",
+                    labels: (row.labels ?? []).map((l) => l.name).join(", "),
+                  });
                 }}
               >
                 <Pencil className="h-4 w-4" />
@@ -144,6 +183,7 @@ export default function EmailContacts() {
       const payload = {
         email: normalized,
         name: draft.name.trim() || undefined,
+        labels: parseLabelInput(draft.labels),
       };
       if (editing) {
         await updateEmailContactRequest(editing.id, payload);
@@ -200,7 +240,25 @@ export default function EmailContacts() {
         }
       />
 
-      <div className="mt-6">
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="w-full max-w-xs">
+          <Select value={labelFilter} onValueChange={setLabelFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder={t("emailContacts.filterByLabel")} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_LABELS}>{t("emailContacts.allLabels")}</SelectItem>
+              {labels.map((label) => (
+                <SelectItem key={label.id} value={label.name}>
+                  {label.name} ({label.contactCount})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="mt-4">
         {isLoading ? (
           <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -211,14 +269,19 @@ export default function EmailContacts() {
             columns={columns}
             rows={rows}
             rowKey={(row) => String(row.id)}
-            searchAccessor={(row) => `${row.email} ${row.name ?? ""}`}
+            searchAccessor={(row) =>
+              `${row.email} ${row.name ?? ""} ${(row.labels ?? []).map((l) => l.name).join(" ")}`
+            }
             controlledSearch={{
               query: searchQuery,
               filters: {},
               expanded: false,
               onQueryChange: setSearchQuery,
               onFilterChange: () => {},
-              onClear: () => setSearchQuery(""),
+              onClear: () => {
+                setSearchQuery("");
+                setLabelFilter(ALL_LABELS);
+              },
               onToggleExpanded: () => {},
             }}
             disableClientFiltering
@@ -261,6 +324,16 @@ export default function EmailContacts() {
                   onChange={(e) => setDraft({ ...draft, name: e.target.value })}
                   placeholder={t("campaigns.contactNamePlaceholder")}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contact-labels">{t("emailContacts.labels")}</Label>
+                <Input
+                  id="contact-labels"
+                  value={draft.labels}
+                  onChange={(e) => setDraft({ ...draft, labels: e.target.value })}
+                  placeholder={t("emailContacts.labelsPlaceholder")}
+                />
+                <p className="text-xs text-muted-foreground">{t("emailContacts.labelsHint")}</p>
               </div>
             </div>
           )}

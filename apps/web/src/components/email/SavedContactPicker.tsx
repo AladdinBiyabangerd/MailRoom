@@ -261,12 +261,17 @@ export function SavedContactPickerDialog({
                         onCheckedChange={() => toggleContact(contact)}
                         className="mt-0.5"
                       />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {emailContactDisplayName(contact)}
-                        </p>
-                        <p className="truncate text-xs text-muted-foreground">{contact.email}</p>
-                      </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {emailContactDisplayName(contact)}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">{contact.email}</p>
+                    {contact.labels?.length ? (
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        {contact.labels.map((l) => l.name).join(" · ")}
+                      </p>
+                    ) : null}
+                  </div>
                     </label>
                   );
                 })

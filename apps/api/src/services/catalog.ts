@@ -227,32 +227,135 @@ export async function deleteTemplate(id: number) {
   await prisma.emailTemplate.delete({ where: { id } });
 }
 
-function mapContact(c: { id: number; email: string; name: string | null; createdAt: Date; updatedAt: Date }) {
+const contactLabelInclude = {
+  labelLinks: {
+    include: { label: true },
+    orderBy: { label: { name: "asc" as const } },
+  },
+} as const;
+
+type ContactWithLabels = {
+  id: number;
+  email: string;
+  name: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  labelLinks?: { label: { id: number; name: string } }[];
+};
+
+function mapContact(c: ContactWithLabels) {
+  const labels = (c.labelLinks ?? []).map((link) => ({
+    id: link.label.id,
+    name: link.label.name,
+  }));
   return {
     id: c.id,
     email: c.email,
     name: c.name ?? undefined,
+    labels,
     createdAt: iso(c.createdAt),
     updatedAt: iso(c.updatedAt),
   };
 }
 
-export async function searchContacts(search?: string, page?: number, limit?: number) {
+function normalizeLabelNames(labels?: string[] | null): string[] {
+  if (!labels?.length) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of labels) {
+    const name = raw?.trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name.slice(0, 120));
+  }
+  return out;
+}
+
+async function ensureLabelIds(names: string[]): Promise<number[]> {
+  const ids: number[] = [];
+  for (const name of names) {
+    const existing = await prisma.emailLabel.findFirst({
+      where: { name: { equals: name, mode: "insensitive" } },
+    });
+    if (existing) {
+      ids.push(existing.id);
+      continue;
+    }
+    const created = await prisma.emailLabel.create({ data: { name } });
+    ids.push(created.id);
+  }
+  return ids;
+}
+
+async function replaceContactLabels(contactId: number, labels?: string[] | null) {
+  if (labels === undefined) return;
+  const names = normalizeLabelNames(labels);
+  const labelIds = await ensureLabelIds(names);
+  await prisma.emailContactLabel.deleteMany({ where: { contactId } });
+  if (!labelIds.length) return;
+  await prisma.emailContactLabel.createMany({
+    data: labelIds.map((labelId) => ({ contactId, labelId })),
+    skipDuplicates: true,
+  });
+}
+
+async function loadContact(id: number) {
+  const c = await prisma.emailAddressBookContact.findUnique({
+    where: { id },
+    include: contactLabelInclude,
+  });
+  if (!c) throw notFound(Codes.EMAIL_ADDRESS_BOOK_CONTACT, Msg.NOT_FOUND, Msg.ENTITY_EMAIL_CONTACT);
+  return c;
+}
+
+export async function listLabels() {
+  const items = await prisma.emailLabel.findMany({
+    orderBy: { name: "asc" },
+    include: { _count: { select: { contacts: true } } },
+  });
+  return items.map((l) => ({
+    id: l.id,
+    name: l.name,
+    contactCount: l._count.contacts,
+    createdAt: iso(l.createdAt),
+    updatedAt: iso(l.updatedAt),
+  }));
+}
+
+export async function searchContacts(search?: string, page?: number, limit?: number, label?: string) {
   const p = pageParams(page, limit);
-  const where = search?.trim()
-    ? {
-        OR: [
-          { email: { contains: search.trim(), mode: "insensitive" as const } },
-          { name: { contains: search.trim(), mode: "insensitive" as const } },
-        ],
-      }
-    : {};
+  const labelName = label?.trim();
+  const where = {
+    ...(search?.trim()
+      ? {
+          OR: [
+            { email: { contains: search.trim(), mode: "insensitive" as const } },
+            { name: { contains: search.trim(), mode: "insensitive" as const } },
+            {
+              labelLinks: {
+                some: { label: { name: { contains: search.trim(), mode: "insensitive" as const } } },
+              },
+            },
+          ],
+        }
+      : {}),
+    ...(labelName
+      ? {
+          labelLinks: {
+            some: { label: { name: { equals: labelName, mode: "insensitive" as const } } },
+          },
+        }
+      : {}),
+  };
   const [items, total] = await Promise.all([
     prisma.emailAddressBookContact.findMany({
       where,
       orderBy: { updatedAt: "desc" },
       skip: p.skip,
       take: p.limit,
+      include: contactLabelInclude,
     }),
     prisma.emailAddressBookContact.count({ where }),
   ]);
@@ -260,12 +363,10 @@ export async function searchContacts(search?: string, page?: number, limit?: num
 }
 
 export async function getContact(id: number) {
-  const c = await prisma.emailAddressBookContact.findUnique({ where: { id } });
-  if (!c) throw notFound(Codes.EMAIL_ADDRESS_BOOK_CONTACT, Msg.NOT_FOUND, Msg.ENTITY_EMAIL_CONTACT);
-  return mapContact(c);
+  return mapContact(await loadContact(id));
 }
 
-export async function createContact(body: { email: string; name?: string }) {
+export async function createContact(body: { email: string; name?: string; labels?: string[] }) {
   const email = normalizeEmail(body.email);
   const exists = await prisma.emailAddressBookContact.findFirst({
     where: { email: { equals: email, mode: "insensitive" } },
@@ -274,24 +375,26 @@ export async function createContact(body: { email: string; name?: string }) {
   const c = await prisma.emailAddressBookContact.create({
     data: { email, name: body.name?.trim() || null },
   });
-  return mapContact(c);
+  await replaceContactLabels(c.id, body.labels ?? []);
+  return getContact(c.id);
 }
 
-export async function updateContact(id: number, body: { email: string; name?: string }) {
-  await getContact(id);
+export async function updateContact(id: number, body: { email: string; name?: string; labels?: string[] }) {
+  await loadContact(id);
   const email = normalizeEmail(body.email);
   const clash = await prisma.emailAddressBookContact.findFirst({
     where: { email: { equals: email, mode: "insensitive" }, NOT: { id } },
   });
   if (clash) throw bad(Codes.EMAIL_ADDRESS_BOOK_CONTACT, Msg.EMAIL_CONTACT_EXISTS, email);
-  const c = await prisma.emailAddressBookContact.update({
+  await prisma.emailAddressBookContact.update({
     where: { id },
     data: { email, name: body.name?.trim() || null },
   });
-  return mapContact(c);
+  await replaceContactLabels(id, body.labels);
+  return getContact(id);
 }
 
-export async function ensureContact(body: { email: string; name?: string }) {
+export async function ensureContact(body: { email: string; name?: string; labels?: string[] }) {
   const email = normalizeEmail(body.email);
   if (!email) throw bad(Codes.EMAIL_ADDRESS_BOOK_CONTACT, Msg.NOT_FOUND, Msg.ENTITY_EMAIL_CONTACT);
   const name = body.name?.trim() || null;
@@ -300,22 +403,25 @@ export async function ensureContact(body: { email: string; name?: string }) {
   });
   if (existing) {
     if (name && name !== (existing.name ?? null)) {
-      const updated = await prisma.emailAddressBookContact.update({
+      await prisma.emailAddressBookContact.update({
         where: { id: existing.id },
         data: { name },
       });
-      return mapContact(updated);
     }
-    return mapContact(existing);
+    if (body.labels !== undefined) {
+      await replaceContactLabels(existing.id, body.labels);
+    }
+    return getContact(existing.id);
   }
   const created = await prisma.emailAddressBookContact.create({
     data: { email, name },
   });
-  return mapContact(created);
+  await replaceContactLabels(created.id, body.labels ?? []);
+  return getContact(created.id);
 }
 
 export async function deleteContact(id: number) {
-  await getContact(id);
+  await loadContact(id);
   const inUse = await prisma.emailCampaignContact.count({ where: { contactId: id } });
   if (inUse > 0) {
     throw bad(Codes.EMAIL_ADDRESS_BOOK_CONTACT, Msg.EMAIL_CONTACT_IN_USE);
