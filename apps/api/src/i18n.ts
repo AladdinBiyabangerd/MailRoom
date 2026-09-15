@@ -120,6 +120,7 @@ const ru: Dictionary = {
   "exception.refresh_token_missing": "Refresh token отсутствует",
   "exception.refresh_token_expired": "Срок действия refresh token истёк. Войдите снова.",
   "exception.email_already_exists": "Админ с email '{0}' уже существует",
+  "exception.email_label_exists": "Метка с именем '{0}' уже существует",
   "exception.access_denied": "Доступ запрещён",
   "exception.internal_error": "Произошла непредвиденная ошибка. Попробуйте позже.",
   "exception.mail_not_configured":
