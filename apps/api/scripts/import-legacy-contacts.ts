@@ -38,7 +38,29 @@ function loadDotEnv() {
 
 loadDotEnv();
 
-const prisma = new PrismaClient();
+/** Keep Railway public proxy from dropping long import runs. */
+function withProxyFriendlyDatabaseUrl(url: string | undefined): string | undefined {
+  if (!url) return url;
+  try {
+    const u = new URL(url);
+    if (!u.searchParams.has("connect_timeout")) u.searchParams.set("connect_timeout", "60");
+    if (!u.searchParams.has("pool_timeout")) u.searchParams.set("pool_timeout", "60");
+    if (!u.searchParams.has("connection_limit")) u.searchParams.set("connection_limit", "1");
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
+process.env.DATABASE_URL = withProxyFriendlyDatabaseUrl(process.env.DATABASE_URL);
+
+const prisma = new PrismaClient({
+  datasources: process.env.DATABASE_URL
+    ? { db: { url: process.env.DATABASE_URL } }
+    : undefined,
+});
+
+const BATCH = 100;
 
 function splitSqlValues(s: string): string[][] {
   const rows: string[][] = [];
@@ -223,59 +245,103 @@ async function main() {
     return;
   }
 
+  // --- labels (few rows) ---
   const labelIdByName = new Map<string, number>();
-  for (const name of allLabels) {
-    const existing = await prisma.emailLabel.findFirst({
-      where: { name: { equals: name, mode: "insensitive" } },
+  const existingLabels = await prisma.emailLabel.findMany();
+  for (const row of existingLabels) {
+    labelIdByName.set(row.name.toLowerCase(), row.id);
+  }
+  const missingLabels = [...allLabels].filter((n) => !labelIdByName.has(n.toLowerCase()));
+  if (missingLabels.length) {
+    await prisma.emailLabel.createMany({
+      data: missingLabels.map((name) => ({ name })),
+      skipDuplicates: true,
     });
-    if (existing) {
-      labelIdByName.set(name.toLowerCase(), existing.id);
+    const refreshed = await prisma.emailLabel.findMany();
+    labelIdByName.clear();
+    for (const row of refreshed) {
+      labelIdByName.set(row.name.toLowerCase(), row.id);
+    }
+  }
+  console.log(`Labels ready: ${labelIdByName.size}`);
+
+  // --- contacts: prefetch, then batch-create missing ---
+  const existingContacts = await prisma.emailAddressBookContact.findMany({
+    select: { id: true, email: true, name: true },
+  });
+  const contactIdByEmail = new Map(
+    existingContacts.map((c) => [c.email.toLowerCase(), { id: c.id, name: c.name }] as const),
+  );
+
+  const toCreate: { email: string; name: string | null }[] = [];
+  const toRename: { id: number; name: string }[] = [];
+  for (const c of byEmail.values()) {
+    const existing = contactIdByEmail.get(c.email);
+    if (!existing) {
+      toCreate.push({ email: c.email, name: c.name });
       continue;
     }
-    const created = await prisma.emailLabel.create({ data: { name } });
-    labelIdByName.set(name.toLowerCase(), created.id);
+    if (c.name && c.name !== (existing.name ?? null)) {
+      toRename.push({ id: existing.id, name: c.name });
+    }
   }
 
-  let created = 0;
-  let updated = 0;
-  let links = 0;
-
-  for (const c of byEmail.values()) {
-    const existing = await prisma.emailAddressBookContact.findFirst({
-      where: { email: { equals: c.email, mode: "insensitive" } },
+  for (let i = 0; i < toCreate.length; i += BATCH) {
+    const chunk = toCreate.slice(i, i + BATCH);
+    await prisma.emailAddressBookContact.createMany({
+      data: chunk,
+      skipDuplicates: true,
     });
-    let contactId: number;
-    if (existing) {
-      contactId = existing.id;
-      if (c.name && c.name !== (existing.name ?? null)) {
-        await prisma.emailAddressBookContact.update({
-          where: { id: existing.id },
-          data: { name: c.name },
-        });
-      }
-      updated += 1;
-    } else {
-      const row = await prisma.emailAddressBookContact.create({
-        data: { email: c.email, name: c.name },
-      });
-      contactId = row.id;
-      created += 1;
-    }
+    console.log(`  created contacts ${Math.min(i + BATCH, toCreate.length)}/${toCreate.length}`);
+  }
 
-    await prisma.emailContactLabel.deleteMany({ where: { contactId } });
-    const labelIds = [...c.labels]
-      .map((name) => labelIdByName.get(name.toLowerCase()))
-      .filter((id): id is number => typeof id === "number");
-    if (labelIds.length) {
-      await prisma.emailContactLabel.createMany({
-        data: labelIds.map((labelId) => ({ contactId, labelId })),
-        skipDuplicates: true,
-      });
-      links += labelIds.length;
+  for (let i = 0; i < toRename.length; i += BATCH) {
+    const chunk = toRename.slice(i, i + BATCH);
+    await prisma.$transaction(
+      chunk.map((row) =>
+        prisma.emailAddressBookContact.update({
+          where: { id: row.id },
+          data: { name: row.name },
+        }),
+      ),
+    );
+  }
+
+  const allContacts = await prisma.emailAddressBookContact.findMany({
+    select: { id: true, email: true },
+  });
+  contactIdByEmail.clear();
+  for (const row of allContacts) {
+    contactIdByEmail.set(row.email.toLowerCase(), { id: row.id, name: null });
+  }
+
+  // --- label links: replace in batches ---
+  const linkRows: { contactId: number; labelId: number }[] = [];
+  const contactIds: number[] = [];
+  for (const c of byEmail.values()) {
+    const contact = contactIdByEmail.get(c.email);
+    if (!contact) continue;
+    contactIds.push(contact.id);
+    for (const name of c.labels) {
+      const labelId = labelIdByName.get(name.toLowerCase());
+      if (labelId == null) continue;
+      linkRows.push({ contactId: contact.id, labelId });
     }
   }
 
-  console.log(`Done. contacts created=${created} updated=${updated} label_links=${links}`);
+  for (let i = 0; i < contactIds.length; i += BATCH) {
+    const ids = contactIds.slice(i, i + BATCH);
+    await prisma.emailContactLabel.deleteMany({ where: { contactId: { in: ids } } });
+  }
+  for (let i = 0; i < linkRows.length; i += BATCH) {
+    const chunk = linkRows.slice(i, i + BATCH);
+    await prisma.emailContactLabel.createMany({ data: chunk, skipDuplicates: true });
+    console.log(`  label links ${Math.min(i + BATCH, linkRows.length)}/${linkRows.length}`);
+  }
+
+  console.log(
+    `Done. contacts created=${toCreate.length} renamed=${toRename.length} label_links=${linkRows.length}`,
+  );
 }
 
 main()
